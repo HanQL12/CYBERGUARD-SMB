@@ -7,7 +7,7 @@ Giải pháp Bảo mật Email toàn diện cho doanh nghiệp vừa và nhỏ (
 Dashboard cung cấp các chức năng bảo vệ email toàn diện:
 
 ### 🔍 Phát Hiện & Phân Tích
-- ✅ **Phát hiện URL độc hại** - Quét và phân tích URL trong email bằng VirusTotal
+- ✅ **Phát hiện URL độc hại** - Quét và phân tích URL trong email bằng ML
 - ✅ **Phát hiện file đính kèm độc hại** - Phân tích file với công nghệ sandbox
 - ✅ **Phát hiện email giả mạo CEO** - AI phân tích ngữ cảnh tiếng Việt, phát hiện lừa đảo chuyển tiền
 - ✅ **Phân loại tự động** - Gán nhãn SAFE/THREAT dựa trên kết quả phân tích
