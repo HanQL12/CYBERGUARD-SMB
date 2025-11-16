@@ -26,33 +26,33 @@ const Header = ({ workflowStatus }) => {
   }, []);
 
   return (
-    <header style={{ background: '#0f1a2e', borderBottom: '1px solid #1a3a52' }} className="p-6">
+    <header className="bg-white border-b border-gray-200 p-6 shadow-sm">
       <div className="max-w-7xl mx-auto">
         <div className="mb-4 flex items-center justify-between">
           <div>
-            <h1 style={{ color: '#00d9ff' }} className="text-3xl font-bold font-mono">
+            <h1 className="text-4xl font-bold font-mono text-gray-900">
               CYBERGUARD SMB
             </h1>
-            <p style={{ color: '#7a8a99' }} className="text-sm font-mono">
+            <p className="text-base text-gray-600 font-mono mt-1">
               Phát Hiện Mối Đe Dọa bằng ML| Trạng thái: {workflowStatus === 'active' ? 'HOẠT ĐỘNG' : 'ĐANG TẢI...'}
             </p>
           </div>
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-2">
-              <div className={`w-2 h-2 rounded-full ${workflowStatus === 'active' ? 'bg-green-500' : 'bg-gray-500'} animate-pulse`}></div>
-              <span style={{ color: workflowStatus === 'active' ? '#44ff44' : '#7a8a99' }} className="text-xs font-mono">
+              <div className={`w-3 h-3 rounded-full ${workflowStatus === 'active' ? 'bg-green-500' : 'bg-gray-500'} animate-pulse`}></div>
+              <span className={`text-sm font-mono font-semibold ${
+                workflowStatus === 'active' ? 'text-green-600' : 'text-gray-500'
+              }`}>
                 {workflowStatus === 'active' ? 'TRỰC TUYẾN' : 'NGOẠI TUYẾN'}
               </span>
             </div>
             <button 
-              style={{ background: '#1a3a52', color: '#00d9ff', border: '1px solid #1a3a52' }}
-              className="px-4 py-2 rounded text-xs font-mono hover:opacity-80 transition"
+              className="px-5 py-2.5 rounded-md text-sm font-mono hover:bg-gray-100 transition bg-gray-50 text-gray-700 border border-gray-200 font-semibold"
             >
               &gt; CÀI ĐẶT
             </button>
             <button 
-              style={{ background: '#1a3a52', color: '#00d9ff', border: '1px solid #1a3a52' }}
-              className="px-4 py-2 rounded text-xs font-mono hover:opacity-80 transition"
+              className="px-5 py-2.5 rounded-md text-sm font-mono hover:bg-gray-100 transition bg-gray-50 text-gray-700 border border-gray-200 font-semibold"
             >
               &gt; ĐĂNG XUẤT
             </button>
@@ -60,39 +60,33 @@ const Header = ({ workflowStatus }) => {
         </div>
         
         <div className="grid grid-cols-3 gap-4">
-          <div style={{ background: '#0a0e27', border: '1px solid #1a3a52' }} className="p-4 rounded">
-            <div className="flex items-center gap-2 mb-2">
-              <Clock className="w-4 h-4" style={{ color: '#00d9ff' }} />
-              <p style={{ color: '#7a8a99' }} className="text-xs font-mono">THỜI GIAN HIỆN TẠI</p>
+          <div className="bg-gray-50 border border-gray-200 p-5 rounded shadow-sm">
+            <div className="flex items-center gap-2 mb-3">
+              <Clock className="w-5 h-5 text-blue-600" />
+              <p className="text-sm font-mono font-semibold text-gray-600">THỜI GIAN HIỆN TẠI</p>
             </div>
-            <p style={{ color: '#00d9ff' }} className="text-2xl font-bold font-mono">{currentTime}</p>
-            <p style={{ color: '#7a8a99' }} className="text-xs font-mono mt-1">{currentDate}</p>
+            <p className="text-3xl font-bold font-mono text-gray-900">{currentTime}</p>
+            <p className="text-sm font-mono mt-2 text-gray-500">{currentDate}</p>
           </div>
 
-          <div style={{ background: '#0a0e27', border: '1px solid #1a3a52' }} className="p-4 rounded">
-            <div className="flex items-center gap-2 mb-2">
-              <MapPin className="w-4 h-4" style={{ color: '#00d9ff' }} />
-              <p style={{ color: '#7a8a99' }} className="text-xs font-mono">VỊ TRÍ</p>
+          <div className="bg-gray-50 border border-gray-200 p-5 rounded shadow-sm">
+            <div className="flex items-center gap-2 mb-3">
+              <MapPin className="w-5 h-5 text-blue-600" />
+              <p className="text-sm font-mono font-semibold text-gray-600">VỊ TRÍ</p>
             </div>
-            <p style={{ color: '#7a8a99' }} className="text-sm font-mono">Không xác định được</p>
+            <p className="text-base font-mono text-gray-600">Không xác định được</p>
           </div>
 
-          <div style={{ background: '#0a0e27', border: '1px solid #1a3a52' }} className="p-4 rounded">
-              <p style={{ color: '#7a8a99' }} className="text-xs font-mono mb-2">TÌM KIẾM</p>
+          <div className="bg-gray-50 border border-gray-200 p-5 rounded shadow-sm">
+              <p className="text-sm font-mono font-semibold text-gray-600 mb-3">TÌM KIẾM</p>
             <div className="flex gap-2">
               <input
                 type="text"
                 placeholder="Tìm kiếm trên web..."
-                style={{ 
-                  background: '#0a0e27',
-                  border: '1px solid #1a3a52',
-                  color: '#00d9ff'
-                }}
-                className="flex-1 px-3 py-1 rounded text-sm font-mono placeholder-gray-600 focus:outline-none focus:border-cyan-500"
+                className="flex-1 px-4 py-2.5 rounded-md text-base font-mono bg-white border border-gray-300 text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
               <button
-                style={{ background: '#00d9ff', color: '#0a0e27' }}
-                className="px-4 py-1 rounded text-xs font-mono font-bold hover:opacity-80 transition"
+                className="px-5 py-2.5 rounded-md text-sm font-mono font-bold hover:bg-blue-700 transition bg-blue-600 text-white"
               >
                 TÌM KIẾM
               </button>

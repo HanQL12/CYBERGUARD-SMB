@@ -29,7 +29,8 @@ Dashboard cung cấp các chức năng bảo vệ email toàn diện:
 ### Yêu Cầu Hệ Thống
 - Node.js >= 16.x
 - npm hoặc yarn
-- N8N instance (hoặc mock server cho demo)
+- Python 3.8+ (cho backend)
+- Gmail API credentials (cho email scanning)
 
 ### Cài Đặt
 
@@ -46,22 +47,19 @@ npm start
 
 Ứng dụng sẽ chạy tại `http://localhost:3000`
 
-### Sử Dụng Mock Server (Prototype/Demo)
-
-Để test mà không cần N8N backend:
+### Chạy Backend Server
 
 ```bash
 # Terminal 1: Chạy React app
+cd phishing-dashboard
 npm start
 
-# Terminal 2: Chạy mock API server
-node mock-server.js
+# Terminal 2: Chạy Python Flask backend
+cd phishing-dashboard/backend
+python app.py
 ```
 
-Sau đó cập nhật `N8N_CONFIG.baseUrl` trong `src/App.js`:
-```javascript
-baseUrl: 'http://localhost:3001'  // Thay vì n8n URL
-```
+Backend sẽ chạy tại `http://localhost:5000` và frontend tại `http://localhost:3000`
 
 ## 📋 Quy Trình Xử Lý Email Tự Động
 
@@ -149,7 +147,6 @@ phishing-dashboard/
 │   ├── utils/
 │   │   └── validators.js       # Validation utilities (URL, email)
 │   └── App.js                  # Component chính
-├── mock-server.js              # Mock API server cho prototype
 ├── API_AND_N8N_GUIDE.md       # Hướng dẫn API và N8N workflows
 ├── SCAN_URL_WORKFLOW_GUIDE.md  # Hướng dẫn tạo workflow scan-url
 └── README.md                    # File này
@@ -161,15 +158,17 @@ phishing-dashboard/
 - **Tailwind CSS** - Utility-first CSS framework
 - **Recharts** - Thư viện biểu đồ và đồ thị
 - **Lucide React** - Icon library
-- **N8N** - Backend automation và workflow engine
+- **Flask** - Python backend API
+- **Gmail API** - Email integration
 - **VirusTotal API** - Phân tích URL và file độc hại
 - **AI Agent** (OpenAI/Claude) - Phân tích ngữ cảnh CEO fraud
 
 ## 📚 Tài Liệu
 
-- **API_AND_N8N_GUIDE.md** - Chi tiết về tất cả API endpoints và cách setup N8N workflows
-- **SCAN_URL_WORKFLOW_GUIDE.md** - Hướng dẫn tạo workflow `/scan-url`
-- **mock-server.js** - Mock API server để demo ngay không cần backend
+- **backend/README.md** - Hướng dẫn setup và sử dụng backend
+- **backend/GMAIL_SETUP_GUIDE.md** - Hướng dẫn setup Gmail API
+- **backend/CHATBOT_API_GUIDE.md** - Hướng dẫn cấu hình chatbot API
+- **backend/EMAIL_FILTERING.md** - Hướng dẫn filter emails
 
 ## 🎨 Giao Diện
 
@@ -185,20 +184,17 @@ Dashboard sử dụng dark theme với phong cách terminal/hacker để tạo c
 
 ## 🔗 API Endpoints
 
-Xem chi tiết trong `API_AND_N8N_GUIDE.md`
+Backend Flask API cung cấp các endpoints sau:
 
 ### ✅ API Đã Có:
-- `GET /phishing-stats` - Lấy thống kê tổng quan
-- `GET /get-emails` - Lấy danh sách email đã phân tích
-- `POST /scan-url` - Quét URL độc hại (cần tạo workflow)
-
-### 🚧 API Cần Tạo:
+- `GET /dashboard-data` - Lấy thống kê và danh sách email
+- `POST /scan-url` - Quét URL độc hại (VirusTotal)
+- `POST /analyze-email` - Phân tích email đầy đủ (File > URL > CEO Fraud)
 - `POST /analyze-file` - Phân tích file đính kèm (VirusTotal)
-- `POST /detect-ceo-fraud` - Phát hiện CEO fraud (AI Agent)
-- `POST /enable-url-mfa` - Kích hoạt MFA cho URL
-- `POST /enable-file-sandbox` - Kích hoạt sandbox cho file
-- `POST /monitor-network` - Bắt đầu giám sát network
-- `POST /disconnect-device` - Ngắt kết nối thiết bị
+- `POST /detect-ceo-fraud` - Phát hiện CEO fraud (Chatbot API)
+- `GET /health` - Health check endpoint
+
+Xem chi tiết trong `backend/README.md`
 
 ## 🛡️ Tính Năng Bảo Vệ Nâng Cao
 
@@ -224,10 +220,11 @@ Xem chi tiết trong `API_AND_N8N_GUIDE.md`
 
 ## 🔒 Bảo Mật
 
-- API keys được lưu trong N8N environment variables
+- API keys được lưu trong `.env` file (không commit vào git)
 - Không expose sensitive data ra frontend
-- HTTPS cho tất cả API calls
+- CORS được cấu hình cho frontend
 - Input validation và sanitization
+- Gmail API credentials được bảo vệ
 
 ## 🚀 Deployment
 
@@ -239,9 +236,16 @@ npm run build
 Build files sẽ được tạo trong thư mục `build/`
 
 ### Environment Variables
-Tạo file `.env`:
+
+**Frontend** - Tạo file `.env` trong `phishing-dashboard/`:
 ```
-REACT_APP_API_BASE_URL=https://your-n8n-instance.com/webhook
+REACT_APP_API_BASE_URL=http://localhost:5000
+```
+
+**Backend** - Tạo file `.env` trong `phishing-dashboard/backend/`:
+```
+VIRUSTOTAL_API_KEY=your_virustotal_key
+GEMINI_API_KEY=your_gemini_key
 ```
 
 ## 📝 License

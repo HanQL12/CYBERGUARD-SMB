@@ -5,6 +5,12 @@ body {
     sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  font-size: 16px; /* Tăng base font size */
+  background-color: #f9fafb; /* Nền sáng cho toàn bộ app */
+}
+
+* {
+  font-size: inherit;
 }
 
 code {

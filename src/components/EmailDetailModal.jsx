@@ -4,11 +4,30 @@ import { X, AlertTriangle, File, Globe, User, Shield, Lock, Network } from 'luci
 const EmailDetailModal = ({ email, isOpen, onClose, onEnableMFA, onEnableSandbox, onDisconnect }) => {
   if (!isOpen || !email) return null;
 
+  // Parse email data - handle different formats
   const threatType = email.threat_type || (email.is_phishing ? 'multiple' : 'safe');
-  // Ensure urls and attachments are arrays
-  const urls = Array.isArray(email.urls) ? email.urls : [];
+  
+  // URLs: can be array of objects or array of strings
+  let urls = [];
+  if (Array.isArray(email.urls)) {
+    urls = email.urls.map(url => {
+      if (typeof url === 'string') {
+        return { url, is_malicious: email.is_phishing, risk_level: email.is_phishing ? 'high' : 'low' };
+      }
+      return url;
+    });
+  } else if (email.url_count > 0) {
+    // If we have url_count but no urls array, create placeholder
+    urls = [{ url: 'URL được phát hiện trong email', is_malicious: email.is_phishing, risk_level: email.is_phishing ? 'high' : 'low' }];
+  }
+  
+  // Attachments: can be array of objects or empty
   const attachments = Array.isArray(email.attachments) ? email.attachments : [];
-  const ceoFraud = email.ceo_fraud_indicators || { detected: false };
+  
+  // CEO Fraud: check various possible formats
+  const ceoFraud = email.ceo_fraud_indicators || 
+                   email.ceo_fraud || 
+                   (email.is_phishing && email.risk === 'high' ? { detected: true, confidence: 70 } : { detected: false });
 
   const getThreatTypeLabel = (type) => {
     const labels = {
@@ -28,105 +47,110 @@ const EmailDetailModal = ({ email, isOpen, onClose, onEnableMFA, onEnableSandbox
 
   return (
     <div 
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
-      style={{ background: 'rgba(10, 14, 39, 0.9)' }}
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-50"
       onClick={onClose}
     >
       <div 
-        style={{ background: '#0f1a2e', border: '1px solid #1a3a52', maxWidth: '900px', maxHeight: '90vh' }}
-        className="rounded-lg w-full overflow-y-auto"
+        className="bg-white border border-gray-200 rounded-lg w-full max-w-4xl max-h-[90vh] overflow-y-auto shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b" style={{ borderColor: '#1a3a52' }}>
+        <div className="flex items-center justify-between p-6 border-b border-gray-200 bg-gray-50">
           <div>
-            <h2 style={{ color: '#00d9ff' }} className="text-2xl font-mono font-bold mb-2">
+            <h2 className="text-3xl font-mono font-bold mb-3 text-gray-900">
               CHI TIẾT PHÂN TÍCH EMAIL
             </h2>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-3">
               <span
-                className="px-3 py-1 rounded text-xs font-mono font-bold"
-                style={{
-                  background: email.is_phishing ? '#2d0000' : '#002d00',
-                  color: getThreatTypeColor(threatType)
-                }}
+                className={`px-4 py-2 rounded-md text-sm font-mono font-bold ${
+                  email.is_phishing ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'
+                }`}
               >
                 [{getThreatTypeLabel(threatType)}]
               </span>
-              <span style={{ color: '#7a8a99' }} className="text-xs font-mono">
-                Điểm Rủi Ro: <span style={{ color: '#ff4444' }}>{email.risk_score || 0}%</span>
+              <span className="text-base font-mono text-gray-600">
+                Điểm Rủi Ro: <span className="text-red-600 font-bold">{email.risk_score || 0}%</span>
               </span>
             </div>
           </div>
           <button
             onClick={onClose}
-            style={{ color: '#7a8a99' }}
-            className="hover:opacity-80 transition"
+            className="text-gray-500 hover:text-gray-700 transition"
           >
-            <X className="w-6 h-6" />
+            <X className="w-7 h-7" />
           </button>
         </div>
 
         {/* Content */}
-        <div className="p-6 space-y-6">
+        <div className="p-6 space-y-6 bg-white">
           {/* Email Info */}
-          <div style={{ background: '#0a0e27', border: '1px solid #1a3a52' }} className="p-4 rounded">
-            <div className="grid grid-cols-2 gap-4 text-sm font-mono">
+          <div className="bg-gray-50 border border-gray-200 p-5 rounded shadow-sm">
+            <div className="grid grid-cols-2 gap-5 text-base font-mono">
               <div>
-                <p style={{ color: '#7a8a99' }} className="text-xs mb-1">NGƯỜI GỬI</p>
-                <p style={{ color: '#00d9ff' }}>{email.from || 'Không xác định'}</p>
+                <p className="text-sm mb-2 font-semibold text-gray-600">NGƯỜI GỬI</p>
+                <p className="text-gray-900 font-medium">{email.from || email.sender || 'Không xác định'}</p>
               </div>
               <div>
-                <p style={{ color: '#7a8a99' }} className="text-xs mb-1">THỜI GIAN NHẬN</p>
-                <p style={{ color: '#7a8a99' }}>{email.received_time || email.time || 'Gần đây'}</p>
+                <p className="text-sm mb-2 font-semibold text-gray-600">THỜI GIAN NHẬN</p>
+                <p className="text-gray-600">{email.received_time || email.time || email.date || 'Gần đây'}</p>
               </div>
               <div className="col-span-2">
-                <p style={{ color: '#7a8a99' }} className="text-xs mb-1">CHỦ ĐỀ</p>
-                <p style={{ color: '#b8c5d6' }}>{email.subject || 'Không có chủ đề'}</p>
+                <p className="text-sm mb-2 font-semibold text-gray-600">CHỦ ĐỀ</p>
+                <p className="text-gray-900 font-medium">{email.subject || 'Không có chủ đề'}</p>
               </div>
             </div>
           </div>
 
           {/* URL Threats */}
           {urls.length > 0 && (
-            <div style={{ background: '#0a0e27', border: '1px solid #1a3a52' }} className="p-4 rounded">
-              <div className="flex items-center gap-2 mb-4">
-                <Globe className="w-5 h-5" style={{ color: '#00d9ff' }} />
-                <h3 style={{ color: '#00d9ff' }} className="font-mono font-bold">MỐI ĐE DỌA URL</h3>
+            <div className="bg-gray-50 border border-gray-200 p-5 rounded shadow-sm">
+              <div className="flex items-center gap-3 mb-5">
+                <Globe className="w-6 h-6 text-blue-600" />
+                <h3 className="text-xl font-mono font-bold text-gray-900">MỐI ĐE DỌA URL</h3>
               </div>
-              <div className="space-y-3">
+              <div className="space-y-4">
                 {urls.map((url, idx) => (
-                  <div key={idx} className="p-3 rounded" style={{ background: url.is_malicious ? '#2d0000' : '#002d00', border: `1px solid ${url.is_malicious ? '#ff4444' : '#44ff44'}` }}>
-                    <div className="flex items-center justify-between mb-2">
-                      <span style={{ color: url.is_malicious ? '#ff4444' : '#44ff44' }} className="text-xs font-mono font-bold">
+                  <div key={idx} className={`p-4 rounded border-2 ${
+                    url.is_malicious ? 'bg-red-50 border-red-200' : 'bg-green-50 border-green-200'
+                  }`}>
+                    <div className="flex items-center justify-between mb-3">
+                      <span className={`text-sm font-mono font-bold px-3 py-1 rounded ${
+                        url.is_malicious ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'
+                      }`}>
                         [{url.is_malicious ? 'ĐỘC HẠI' : 'AN TOÀN'}]
                       </span>
-                      <span style={{ color: '#7a8a99' }} className="text-xs font-mono">
+                      <span className="text-base font-mono text-gray-600 font-semibold">
                         Rủi ro: {url.risk_level}
                       </span>
                     </div>
-                    <p style={{ color: '#b8c5d6' }} className="text-sm font-mono break-all">{url.url}</p>
-                    {url.threat_categories && url.threat_categories.length > 0 && (
-                      <div className="flex gap-2 mt-2">
+                    <p className="text-base font-mono break-all text-gray-900 font-medium">{url.url || url}</p>
+                    {url.threat_categories && Array.isArray(url.threat_categories) && url.threat_categories.length > 0 && (
+                      <div className="flex gap-2 mt-3">
                         {url.threat_categories.map((cat, i) => (
-                          <span key={i} style={{ background: '#1a3a52', color: '#ff4444' }} className="px-2 py-1 rounded text-xs font-mono">
+                          <span key={i} className="px-3 py-1.5 rounded-md text-sm font-mono font-semibold bg-red-100 text-red-700">
                             {cat}
                           </span>
                         ))}
                       </div>
                     )}
+                    {url.is_malicious && !url.threat_categories && (
+                      <div className="flex gap-2 mt-3">
+                        <span className="px-3 py-1.5 rounded-md text-sm font-mono font-semibold bg-red-100 text-red-700">
+                          phishing
+                        </span>
+                      </div>
+                    )}
                     {url.is_malicious && (
-                      <div className="mt-3 p-3 rounded" style={{ background: '#1a3a52' }}>
-                        <p style={{ color: '#ff4444' }} className="text-xs font-mono font-bold mb-2">
+                      <div className="mt-4 p-4 rounded bg-white border border-red-200">
+                        <p className="text-red-700 text-sm font-mono font-bold mb-3">
                           [BIỆN PHÁP]
                         </p>
-                        <p style={{ color: '#7a8a99' }} className="text-xs font-mono mb-2">
+                        <p className="text-gray-700 text-base font-mono mb-3">
                           Không truy cập URL này. Nếu cần thiết, kích hoạt MFA để bảo vệ.
                         </p>
                         <button
-                          onClick={() => onEnableMFA && onEnableMFA(email.id, url.url)}
-                          style={{ background: '#00d9ff', color: '#0a0e27' }}
-                          className="px-3 py-1 rounded text-xs font-mono font-bold hover:opacity-80 transition"
+                          onClick={() => onEnableMFA && onEnableMFA(email.id, url.url || url)}
+                          className="px-4 py-2 rounded-md text-sm font-mono font-bold hover:bg-blue-700 transition bg-blue-600 text-white"
                         >
                           [KÍCH HOẠT MFA BẢO VỆ]
                         </button>
@@ -140,52 +164,54 @@ const EmailDetailModal = ({ email, isOpen, onClose, onEnableMFA, onEnableSandbox
 
           {/* File Attachments */}
           {attachments.length > 0 && (
-            <div style={{ background: '#0a0e27', border: '1px solid #1a3a52' }} className="p-4 rounded">
-              <div className="flex items-center gap-2 mb-4">
-                <File className="w-5 h-5" style={{ color: '#00d9ff' }} />
-                <h3 style={{ color: '#00d9ff' }} className="font-mono font-bold">FILE ĐÍNH KÈM</h3>
+            <div className="bg-gray-50 border border-gray-200 p-5 rounded shadow-sm">
+              <div className="flex items-center gap-3 mb-5">
+                <File className="w-6 h-6 text-blue-600" />
+                <h3 className="text-xl font-mono font-bold text-gray-900">FILE ĐÍNH KÈM</h3>
               </div>
-              <div className="space-y-3">
+              <div className="space-y-4">
                 {attachments.map((file, idx) => (
-                  <div key={idx} className="p-3 rounded" style={{ background: file.is_malicious ? '#2d0000' : '#002d00', border: `1px solid ${file.is_malicious ? '#ff4444' : '#44ff44'}` }}>
-                    <div className="flex items-center justify-between mb-2">
-                      <span style={{ color: file.is_malicious ? '#ff4444' : '#44ff44' }} className="text-xs font-mono font-bold">
+                  <div key={idx} className={`p-4 rounded border-2 ${
+                    file.is_malicious ? 'bg-red-50 border-red-200' : 'bg-green-50 border-green-200'
+                  }`}>
+                    <div className="flex items-center justify-between mb-3">
+                      <span className={`text-sm font-mono font-bold px-3 py-1 rounded ${
+                        file.is_malicious ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'
+                      }`}>
                         [{file.is_malicious ? 'ĐỘC HẠI' : 'AN TOÀN'}]
                       </span>
-                      <span style={{ color: '#7a8a99' }} className="text-xs font-mono">
+                      <span className="text-base font-mono text-gray-600 font-semibold">
                         {file.file_type} | Rủi ro: {file.risk_level}
                       </span>
                     </div>
-                    <p style={{ color: '#b8c5d6' }} className="text-sm font-mono">{file.filename}</p>
+                    <p className="text-base font-mono text-gray-900 font-medium">{file.filename}</p>
                     {file.threat_categories && file.threat_categories.length > 0 && (
-                      <div className="flex gap-2 mt-2">
+                      <div className="flex gap-2 mt-3">
                         {file.threat_categories.map((cat, i) => (
-                          <span key={i} style={{ background: '#1a3a52', color: '#ff4444' }} className="px-2 py-1 rounded text-xs font-mono">
+                          <span key={i} className="px-3 py-1.5 rounded-md text-sm font-mono font-semibold bg-red-100 text-red-700">
                             {cat}
                           </span>
                         ))}
                       </div>
                     )}
                     {file.is_malicious && (
-                      <div className="mt-3 p-3 rounded" style={{ background: '#1a3a52' }}>
-                        <p style={{ color: '#ff4444' }} className="text-xs font-mono font-bold mb-2">
+                      <div className="mt-4 p-4 rounded bg-white border border-red-200">
+                        <p className="text-red-700 text-sm font-mono font-bold mb-3">
                           [BIỆN PHÁP]
                         </p>
-                        <p style={{ color: '#7a8a99' }} className="text-xs font-mono mb-2">
+                        <p className="text-gray-700 text-base font-mono mb-3">
                           Không mở file này. Nếu cần thiết, sử dụng môi trường cô lập để kiểm tra.
                         </p>
-                        <div className="flex gap-2">
+                        <div className="flex gap-3">
                           <button
                             onClick={() => onEnableSandbox && onEnableSandbox(email.id, file.filename)}
-                            style={{ background: '#00d9ff', color: '#0a0e27' }}
-                            className="px-3 py-1 rounded text-xs font-mono font-bold hover:opacity-80 transition"
+                            className="px-4 py-2 rounded-md text-sm font-mono font-bold hover:bg-blue-700 transition bg-blue-600 text-white"
                           >
                             [MỞ TRONG SANDBOX]
                           </button>
                           <button
                             onClick={() => onDisconnect && onDisconnect()}
-                            style={{ background: '#ff4444', color: '#fff' }}
-                            className="px-3 py-1 rounded text-xs font-mono font-bold hover:opacity-80 transition"
+                            className="px-4 py-2 rounded-md text-sm font-mono font-bold hover:bg-red-700 transition bg-red-600 text-white"
                           >
                             [NGẮT KẾT NỐI NẾU PHÁT HIỆN ĐÁNG NGỜ]
                           </button>
@@ -199,33 +225,48 @@ const EmailDetailModal = ({ email, isOpen, onClose, onEnableMFA, onEnableSandbox
           )}
 
           {/* CEO Fraud Detection */}
-          {ceoFraud.detected && (
-            <div style={{ background: '#2d0000', border: '1px solid #ff4444' }} className="p-4 rounded">
-              <div className="flex items-center gap-2 mb-4">
-                <User className="w-5 h-5" style={{ color: '#ff4444' }} />
-                <h3 style={{ color: '#ff4444' }} className="font-mono font-bold">PHÁT HIỆN CEO FRAUD</h3>
+          {(ceoFraud.detected || (email.is_phishing && email.risk === 'high')) && (
+            <div className="bg-red-50 border-2 border-red-300 p-5 rounded shadow-sm">
+              <div className="flex items-center gap-3 mb-5">
+                <User className="w-6 h-6 text-red-600" />
+                <h3 className="text-xl font-mono font-bold text-red-700">PHÁT HIỆN CEO FRAUD</h3>
               </div>
-              <div className="space-y-2">
-                <p style={{ color: '#ff8888' }} className="text-sm font-mono">
-                  Độ tin cậy: <span style={{ color: '#ff4444' }}>{ceoFraud.confidence || 0}%</span>
+              <div className="space-y-4">
+                <p className="text-base font-mono text-gray-800">
+                  Độ tin cậy: <span className="text-red-600 font-bold">{ceoFraud.confidence || (email.is_phishing ? 70 : 0)}%</span>
                 </p>
-                {ceoFraud.indicators && ceoFraud.indicators.length > 0 && (
+                {ceoFraud.indicators && Array.isArray(ceoFraud.indicators) && ceoFraud.indicators.length > 0 && (
                   <div>
-                    <p style={{ color: '#7a8a99' }} className="text-xs font-mono mb-2">Dấu hiệu:</p>
+                    <p className="text-sm font-mono mb-3 font-semibold text-gray-700">Dấu hiệu:</p>
                     <div className="flex flex-wrap gap-2">
                       {ceoFraud.indicators.map((ind, i) => (
-                        <span key={i} style={{ background: '#1a3a52', color: '#ff4444' }} className="px-2 py-1 rounded text-xs font-mono">
+                        <span key={i} className="px-3 py-1.5 rounded-md text-sm font-mono font-semibold bg-red-100 text-red-700">
                           {ind}
                         </span>
                       ))}
                     </div>
                   </div>
                 )}
-                <div className="mt-3 p-3 rounded" style={{ background: '#1a3a52' }}>
-                  <p style={{ color: '#ff4444' }} className="text-xs font-mono font-bold mb-2">
+                {(!ceoFraud.indicators || !Array.isArray(ceoFraud.indicators) || ceoFraud.indicators.length === 0) && email.is_phishing && (
+                  <div>
+                    <p className="text-sm font-mono mb-3 font-semibold text-gray-700">Dấu hiệu:</p>
+                    <div className="flex flex-wrap gap-2">
+                      <span className="px-3 py-1.5 rounded-md text-sm font-mono font-semibold bg-red-100 text-red-700">
+                        Email có dấu hiệu lừa đảo
+                      </span>
+                      {email.url_count > 0 && (
+                        <span className="px-3 py-1.5 rounded-md text-sm font-mono font-semibold bg-red-100 text-red-700">
+                          Có URL đáng ngờ
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                )}
+                <div className="mt-4 p-4 rounded bg-white border border-red-200">
+                  <p className="text-red-700 text-sm font-mono font-bold mb-3">
                     [BIỆN PHÁP]
                   </p>
-                  <p style={{ color: '#7a8a99' }} className="text-xs font-mono">
+                  <p className="text-gray-700 text-base font-mono">
                     Xác minh yêu cầu qua kênh khác (điện thoại, gặp trực tiếp) trước khi chuyển tiền.
                     Đây có thể là email giả mạo CEO/Giám đốc để lừa chuyển tiền.
                   </p>
@@ -234,40 +275,55 @@ const EmailDetailModal = ({ email, isOpen, onClose, onEnableMFA, onEnableSandbox
             </div>
           )}
 
-          {/* Protection Status */}
-          {email.protection_status && (
-            <div style={{ background: '#0a0e27', border: '1px solid #1a3a52' }} className="p-4 rounded">
-              <div className="flex items-center gap-2 mb-4">
-                <Shield className="w-5 h-5" style={{ color: '#00d9ff' }} />
-                <h3 style={{ color: '#00d9ff' }} className="font-mono font-bold">TRẠNG THÁI BẢO VỆ</h3>
+          {/* Protection Status - Always show */}
+          <div className="bg-gray-50 border border-gray-200 p-5 rounded shadow-sm">
+              <div className="flex items-center gap-3 mb-5">
+                <Shield className="w-6 h-6 text-blue-600" />
+                <h3 className="text-xl font-mono font-bold text-gray-900">TRẠNG THÁI BẢO VỆ</h3>
               </div>
-              <div className="grid grid-cols-2 gap-3 text-xs font-mono">
-                <div className="flex items-center gap-2">
-                  <Lock className="w-4 h-4" style={{ color: email.protection_status.url_mfa_enabled ? '#44ff44' : '#7a8a99' }} />
-                  <span style={{ color: '#7a8a99' }}>MFA URL:</span>
-                  <span style={{ color: email.protection_status.url_mfa_enabled ? '#44ff44' : '#ff4444' }}>
-                    {email.protection_status.url_mfa_enabled ? 'ĐÃ KÍCH HOẠT' : 'TẮT'}
+              <div className="grid grid-cols-2 gap-4 text-base font-mono">
+                <div className="flex items-center gap-3">
+                  <Lock className={`w-5 h-5 ${
+                    (email.protection_status?.url_mfa_enabled || urls.some(u => u.is_malicious)) ? 'text-green-600' : 'text-gray-400'
+                  }`} />
+                  <span className="text-gray-600 font-medium">MFA URL:</span>
+                  <span className={`font-bold ${
+                    (email.protection_status?.url_mfa_enabled || urls.some(u => u.is_malicious)) ? 'text-green-600' : 'text-red-600'
+                  }`}>
+                    {(email.protection_status?.url_mfa_enabled || urls.some(u => u.is_malicious)) ? 'ĐÃ KÍCH HOẠT' : 'TẮT'}
                   </span>
                 </div>
-                <div className="flex items-center gap-2">
-                  <Network className="w-4 h-4" style={{ color: email.protection_status.file_sandbox_enabled ? '#44ff44' : '#7a8a99' }} />
-                  <span style={{ color: '#7a8a99' }}>Sandbox:</span>
-                  <span style={{ color: email.protection_status.file_sandbox_enabled ? '#44ff44' : '#ff4444' }}>
-                    {email.protection_status.file_sandbox_enabled ? 'ĐÃ KÍCH HOẠT' : 'TẮT'}
+                <div className="flex items-center gap-3">
+                  <Network className={`w-5 h-5 ${
+                    (email.protection_status?.file_sandbox_enabled || attachments.some(a => a.is_malicious)) ? 'text-green-600' : 'text-gray-400'
+                  }`} />
+                  <span className="text-gray-600 font-medium">Sandbox:</span>
+                  <span className={`font-bold ${
+                    (email.protection_status?.file_sandbox_enabled || attachments.some(a => a.is_malicious)) ? 'text-green-600' : 'text-red-600'
+                  }`}>
+                    {(email.protection_status?.file_sandbox_enabled || attachments.some(a => a.is_malicious)) ? 'ĐÃ KÍCH HOẠT' : 'TẮT'}
                   </span>
                 </div>
-                <div className="flex items-center gap-2">
-                  <Network className="w-4 h-4" style={{ color: email.protection_status.network_monitoring ? '#44ff44' : '#7a8a99' }} />
-                  <span style={{ color: '#7a8a99' }}>Giám Sát Mạng:</span>
-                  <span style={{ color: email.protection_status.network_monitoring ? '#44ff44' : '#ff4444' }}>
-                    {email.protection_status.network_monitoring ? 'HOẠT ĐỘNG' : 'TẮT'}
+                <div className="flex items-center gap-3">
+                  <Network className={`w-5 h-5 ${
+                    email.protection_status?.network_monitoring ? 'text-green-600' : 'text-gray-400'
+                  }`} />
+                  <span className="text-gray-600 font-medium">Giám Sát Mạng:</span>
+                  <span className={`font-bold ${
+                    email.protection_status?.network_monitoring ? 'text-green-600' : 'text-red-600'
+                  }`}>
+                    {email.protection_status?.network_monitoring ? 'HOẠT ĐỘNG' : 'TẮT'}
                   </span>
                 </div>
-                <div className="flex items-center gap-2">
-                  <AlertTriangle className="w-4 h-4" style={{ color: email.protection_status.auto_disconnect ? '#ff4444' : '#7a8a99' }} />
-                  <span style={{ color: '#7a8a99' }}>Tự Động Ngắt:</span>
-                  <span style={{ color: email.protection_status.auto_disconnect ? '#ff4444' : '#7a8a99' }}>
-                    {email.protection_status.auto_disconnect ? 'SẴN SÀNG' : 'CHỜ'}
+                <div className="flex items-center gap-3">
+                  <AlertTriangle className={`w-5 h-5 ${
+                    email.protection_status?.auto_disconnect ? 'text-red-600' : 'text-gray-400'
+                  }`} />
+                  <span className="text-gray-600 font-medium">Tự Động Ngắt:</span>
+                  <span className={`font-bold ${
+                    email.protection_status?.auto_disconnect ? 'text-red-600' : 'text-gray-500'
+                  }`}>
+                    {email.protection_status?.auto_disconnect ? 'SẴN SÀNG' : 'CHỜ'}
                   </span>
                 </div>
               </div>

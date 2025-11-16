@@ -88,9 +88,9 @@ const EmailProtectionTab = ({
       </div>
 
       {/* Filter & Refresh */}
-      <div style={{ background: '#0f1a2e', border: '1px solid #1a3a52' }} className="p-4 rounded">
-        <div className="flex gap-2 justify-between items-center flex-wrap">
-          <div className="flex gap-2 flex-wrap">
+      <div className="bg-white border border-gray-200 p-5 rounded shadow-sm">
+        <div className="flex gap-3 justify-between items-center flex-wrap">
+          <div className="flex gap-3 flex-wrap">
             {[
               { id: 'all', label: 'TẤT CẢ' },
               { id: 'safe', label: 'AN TOÀN' },
@@ -99,12 +99,11 @@ const EmailProtectionTab = ({
               <button
                 key={f.id}
                 onClick={() => setEmailFilter(f.id)}
-                className="px-4 py-2 rounded text-xs font-mono transition"
-                style={{
-                  background: emailFilter === f.id ? '#00d9ff' : '#1a3a52',
-                  color: emailFilter === f.id ? '#0a0e27' : '#00d9ff',
-                  border: '1px solid #1a3a52'
-                }}
+                className={`px-5 py-2.5 rounded-md text-sm font-mono font-semibold transition ${
+                  emailFilter === f.id 
+                    ? 'bg-blue-600 text-white' 
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
               >
                 [{f.label}]
               </button>
@@ -112,36 +111,35 @@ const EmailProtectionTab = ({
           </div>
           <button
             onClick={onRefresh}
-            className="px-4 py-2 rounded text-xs font-mono transition flex items-center gap-2 hover:opacity-80"
-            style={{ background: '#1a3a52', color: '#00d9ff', border: '1px solid #1a3a52' }}
+            className="px-5 py-2.5 rounded-md text-sm font-mono font-semibold transition flex items-center gap-2 bg-gray-100 text-gray-700 hover:bg-gray-200"
           >
-            <RefreshCw className="w-4 h-4" />
+            <RefreshCw className="w-5 h-5" />
             LÀM MỚI
           </button>
         </div>
       </div>
 
       {/* Info Banner */}
-      <div style={{ background: '#0a0e27', border: '1px solid #1a3a52' }} className="p-4 rounded">
-        <p style={{ color: '#7a8a99' }} className="text-sm font-mono">
+      <div className="bg-blue-50 border border-blue-200 p-5 rounded">
+        <p className="text-gray-700 text-base font-mono">
           ML Engine Đang Hoạt Động: Quét email real-time với mô hình deep learning. 
           Tất cả URL được phân tích tự động để phát hiện phishing, malware và spam.
         </p>
       </div>
 
       {/* Email List */}
-      <div style={{ background: '#0f1a2e', border: '1px solid #1a3a52' }} className="rounded">
+      <div className="bg-white border border-gray-200 rounded shadow-sm">
         {loadingEmails ? (
-          <div className="p-8 text-center">
-            <p style={{ color: '#7a8a99' }} className="font-mono">[ ĐANG QUÉT... ]</p>
+          <div className="p-10 text-center">
+            <p className="text-gray-600 font-mono text-lg">[ ĐANG QUÉT... ]</p>
           </div>
         ) : filteredEmails.length === 0 ? (
-          <div className="p-8 text-center">
-            <Mail className="w-16 h-16 mx-auto mb-4" style={{ color: '#1a3a52' }} />
-            <p style={{ color: '#7a8a99' }} className="font-mono">[ KHÔNG TÌM THẤY EMAIL ]</p>
+          <div className="p-10 text-center">
+            <Mail className="w-20 h-20 mx-auto mb-4 text-gray-400" />
+            <p className="text-gray-600 font-mono text-lg">[ KHÔNG TÌM THẤY EMAIL ]</p>
           </div>
         ) : (
-          <div className="divide-y" style={{ borderColor: '#1a3a52' }}>
+          <div className="divide-y divide-gray-200">
             {filteredEmails.map((email, index) => {
               const isPhishing = email.is_phishing || email.status === 'phishing';
               const emailFrom = email.from || email.sender || 'Unknown sender';
@@ -151,57 +149,54 @@ const EmailProtectionTab = ({
               const urlCount = email.url_count || email.urls || 0;
 
               return (
-                <div key={email.id || index} className="p-4 hover:opacity-80 transition">
-                  <div className="flex items-start justify-between mb-2">
-                    <div className="flex items-center gap-2">
+                <div key={email.id || index} className="p-5 hover:bg-gray-50 transition">
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="flex items-center gap-3 flex-wrap">
                       <span
-                        className="text-xs px-2 py-1 rounded font-mono font-bold"
-                        style={{
-                          background: isPhishing ? '#2d0000' : '#002d00',
-                          color: isPhishing ? '#ff4444' : '#44ff44'
-                        }}
+                        className={`text-sm px-3 py-1.5 rounded-md font-mono font-bold ${
+                          isPhishing ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'
+                        }`}
                       >
                         {isPhishing ? '[MỐI ĐE DỌA]' : '[AN TOÀN]'}
                       </span>
-                      <span style={{ color: '#00d9ff' }} className="font-mono text-xs">
+                      <span className="text-gray-800 font-mono text-base font-medium">
                         {emailFrom}
                       </span>
-                      <span style={{ color: '#7a8a99' }} className="text-xs font-mono">
+                      <span className="text-gray-500 text-sm font-mono">
                         {emailTime}
                       </span>
                     </div>
-                    <span style={{ color: '#7a8a99' }} className="text-xs font-mono">
+                    <span className="text-gray-600 text-base font-mono font-semibold">
                       Rủi ro: {riskScore}%
                     </span>
                   </div>
-                  <p style={{ color: '#b8c5d6' }} className="text-sm mb-1 font-mono">
+                  <p className="text-gray-800 text-base mb-2 font-mono font-medium">
                     {emailSubject}
                   </p>
-                  <div className="flex items-center gap-4 text-xs font-mono flex-wrap">
-                    <span style={{ color: '#7a8a99' }} className="flex items-center gap-1">
-                      <Globe className="w-3 h-3" />
+                  <div className="flex items-center gap-4 text-sm font-mono flex-wrap mb-3">
+                    <span className="text-gray-600 flex items-center gap-2">
+                      <Globe className="w-4 h-4" />
                       URLs: {urlCount} {isPhishing ? 'đáng ngờ' : 'đã xác minh'}
                     </span>
                     {getThreatTypeBadge(email).map((badge, i) => (
                       <span
                         key={i}
-                        style={{ background: '#1a3a52', color: badge.color }}
-                        className="px-2 py-1 rounded text-xs font-mono font-bold"
+                        className="px-3 py-1.5 rounded-md text-sm font-mono font-bold bg-gray-100 text-gray-700"
+                        style={{ color: badge.color }}
                       >
                         [{badge.label}]
                       </span>
                     ))}
-                    <span style={{ color: isPhishing ? '#ff4444' : '#44ff44' }}>
+                    <span className={`font-semibold ${isPhishing ? 'text-red-600' : 'text-green-600'}`}>
                       Trạng thái: {isPhishing ? 'TỰ ĐỘNG CHẶN' : 'ĐÃ XÁC MINH'}
                     </span>
                   </div>
-                  <div className="mt-2">
+                  <div className="mt-3">
                     <button
                       onClick={() => handleViewDetails(email)}
-                      style={{ background: '#1a3a52', color: '#00d9ff', border: '1px solid #1a3a52' }}
-                      className="px-3 py-1 rounded text-xs font-mono hover:opacity-80 transition flex items-center gap-2"
+                      className="px-4 py-2 rounded-md text-sm font-mono font-semibold hover:bg-gray-200 transition flex items-center gap-2 bg-gray-100 text-gray-700"
                     >
-                      <Eye className="w-3 h-3" />
+                      <Eye className="w-4 h-4" />
                       XEM PHÂN TÍCH
                     </button>
                   </div>

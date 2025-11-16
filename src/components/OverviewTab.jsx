@@ -48,12 +48,14 @@ const OverviewTab = ({ realStats, loadingStats, displayStats, onRefresh }) => {
   ];
 
   const customTooltipStyle = {
-    backgroundColor: '#0f1a2e',
-    border: '1px solid #1a3a52',
-    color: '#00d9ff',
+    backgroundColor: '#ffffff',
+    border: '1px solid #e5e7eb',
+    color: '#1f2937',
     fontFamily: 'monospace',
-    fontSize: '12px',
-    padding: '8px'
+    fontSize: '14px',
+    padding: '12px',
+    borderRadius: '6px',
+    boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)'
   };
 
   const formatTime = (date) => {
@@ -68,13 +70,13 @@ const OverviewTab = ({ realStats, loadingStats, displayStats, onRefresh }) => {
   return (
     <div className="space-y-6">
       {/* Header Card với Auto-refresh indicator */}
-      <div style={{ background: '#0f1a2e', border: '1px solid #1a3a52' }} className="p-4 rounded">
+      <div className="bg-white border border-gray-200 p-5 rounded shadow-sm">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <Activity className="w-6 h-6 animate-pulse" style={{ color: '#00d9ff' }} />
+            <Activity className="w-7 h-7 animate-pulse text-blue-600" />
             <div>
-              <p style={{ color: '#00d9ff' }} className="font-bold font-mono">GIÁM SÁT TRỰC TIẾP ĐANG HOẠT ĐỘNG</p>
-              <p style={{ color: '#7a8a99' }} className="text-xs font-mono">
+              <p className="font-bold font-mono text-lg text-gray-900">GIÁM SÁT TRỰC TIẾP ĐANG HOẠT ĐỘNG</p>
+              <p className="text-sm font-mono text-gray-600 mt-1">
                 {realStats.last_updated 
                   ? `Cập nhật lần cuối: ${formatTime(realStats.last_updated)}`
                   : 'Đang khởi tạo...'}
@@ -83,17 +85,16 @@ const OverviewTab = ({ realStats, loadingStats, displayStats, onRefresh }) => {
           </div>
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-2">
-              <Clock className="w-4 h-4" style={{ color: '#7a8a99' }} />
-              <span style={{ color: '#7a8a99' }} className="text-xs font-mono">
+              <Clock className="w-5 h-5 text-gray-500" />
+              <span className="text-sm font-mono text-gray-600">
                 Làm mới: {lastRefresh.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
               </span>
             </div>
             <button 
               onClick={handleRefresh}
-              style={{ background: '#1a3a52', color: '#00d9ff', border: '1px solid #1a3a52' }}
-              className="px-4 py-2 rounded text-xs font-mono transition flex items-center gap-2 hover:opacity-80"
+              className="px-5 py-2.5 rounded-md text-sm font-mono transition flex items-center gap-2 hover:bg-gray-200 bg-gray-100 text-gray-700 font-semibold"
             >
-              <RefreshCw className="w-4 h-4" />
+              <RefreshCw className="w-5 h-5" />
               LÀM MỚI
             </button>
           </div>
@@ -137,8 +138,8 @@ const OverviewTab = ({ realStats, loadingStats, displayStats, onRefresh }) => {
 
       {/* Charts Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <div style={{ background: '#0f1a2e', border: '1px solid #1a3a52' }} className="lg:col-span-2 p-4 rounded">
-          <h3 style={{ color: '#00d9ff' }} className="text-lg font-mono mb-4">XU HƯỚNG PHÁT HIỆN MỐI ĐE DỌA</h3>
+        <div className="bg-white border border-gray-200 lg:col-span-2 p-5 rounded shadow-sm">
+          <h3 className="text-xl font-mono mb-5 font-bold text-gray-900">XU HƯỚNG PHÁT HIỆN MỐI ĐE DỌA</h3>
           <ResponsiveContainer width="100%" height={300}>
             <AreaChart data={trendData}>
               <defs>
@@ -151,9 +152,9 @@ const OverviewTab = ({ realStats, loadingStats, displayStats, onRefresh }) => {
                   <stop offset="95%" stopColor="#44ff44" stopOpacity={0}/>
                 </linearGradient>
               </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="#1a3a52" />
-              <XAxis dataKey="date" stroke="#7a8a99" style={{ fontFamily: 'monospace', fontSize: '10px' }} />
-              <YAxis stroke="#7a8a99" style={{ fontFamily: 'monospace', fontSize: '10px' }} />
+              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+              <XAxis dataKey="date" stroke="#6b7280" style={{ fontFamily: 'monospace', fontSize: '12px' }} />
+              <YAxis stroke="#6b7280" style={{ fontFamily: 'monospace', fontSize: '12px' }} />
               <Tooltip contentStyle={customTooltipStyle} />
               <Area type="monotone" dataKey="threats" stroke="#ff4444" fillOpacity={1} fill="url(#colorThreats)" name="Mối Đe Dọa" />
               <Area type="monotone" dataKey="safe" stroke="#44ff44" fillOpacity={1} fill="url(#colorSafe)" name="An Toàn" />
@@ -162,8 +163,8 @@ const OverviewTab = ({ realStats, loadingStats, displayStats, onRefresh }) => {
           </ResponsiveContainer>
         </div>
 
-        <div style={{ background: '#0f1a2e', border: '1px solid #1a3a52' }} className="p-4 rounded">
-          <h3 style={{ color: '#00d9ff' }} className="text-lg font-mono mb-4">PHÂN BỐ EMAIL</h3>
+        <div className="bg-white border border-gray-200 p-5 rounded shadow-sm">
+          <h3 className="text-xl font-mono mb-5 font-bold text-gray-900">PHÂN BỐ EMAIL</h3>
           <ResponsiveContainer width="100%" height={300}>
             <PieChart>
               <Pie
@@ -187,33 +188,33 @@ const OverviewTab = ({ realStats, loadingStats, displayStats, onRefresh }) => {
       </div>
 
       {/* ML Engine Status với thông tin chi tiết */}
-      <div style={{ background: '#0f1a2e', border: '1px solid #1a3a52' }} className="p-6 rounded">
+      <div className="bg-white border border-gray-200 p-6 rounded shadow-sm">
         <div className="flex items-start gap-4">
-          <div className="p-3 rounded" style={{ background: '#1a3a52' }}>
-            <Activity className="w-8 h-8" style={{ color: '#00d9ff' }} />
+          <div className="p-4 rounded bg-blue-100">
+            <Activity className="w-8 h-8 text-blue-600" />
           </div>
           <div className="flex-1">
-            <h4 style={{ color: '#00d9ff' }} className="font-bold font-mono mb-2">TRẠNG THÁI ML ENGINE</h4>
-            <p style={{ color: '#7a8a99' }} className="text-sm font-mono mb-4">
+            <h4 className="font-bold font-mono mb-3 text-xl text-gray-900">TRẠNG THÁI ML ENGINE</h4>
+            <p className="text-base font-mono mb-5 text-gray-700">
               Mô hình deep learning tiên tiến liên tục phân tích mẫu email, cấu trúc URL, 
               và hành vi người gửi để phát hiện các cuộc tấn công phishing tinh vi với độ chính xác 93.5%.
             </p>
-            <div className="grid grid-cols-2 gap-4 text-sm font-mono">
+            <div className="grid grid-cols-2 gap-4 text-base font-mono">
               <div>
-                <span style={{ color: '#7a8a99' }}>Model:</span>
-                <span style={{ color: '#44ff44' }} className="ml-2 font-bold">Phishing-Defender v2.1</span>
+                <span className="text-gray-600">Model:</span>
+                <span className="ml-2 font-bold text-green-600">Phishing-Defender v2.1</span>
               </div>
               <div>
-                <span style={{ color: '#7a8a99' }}>Dữ liệu huấn luyện:</span>
-                <span style={{ color: '#00d9ff' }} className="ml-2 font-bold">2.3M mẫu</span>
+                <span className="text-gray-600">Dữ liệu huấn luyện:</span>
+                <span className="ml-2 font-bold text-blue-600">2.3M mẫu</span>
               </div>
               <div>
-                <span style={{ color: '#7a8a99' }}>Tỷ lệ phát hiện:</span>
-                <span style={{ color: '#00d9ff' }} className="ml-2 font-bold">100%</span>
+                <span className="text-gray-600">Tỷ lệ phát hiện:</span>
+                <span className="ml-2 font-bold text-blue-600">100%</span>
               </div>
               <div>
-                <span style={{ color: '#7a8a99' }}>Tỷ lệ phishing:</span>
-                <span style={{ color: '#ff4444' }} className="ml-2 font-bold">{displayStats.phishingRate}</span>
+                <span className="text-gray-600">Tỷ lệ phishing:</span>
+                <span className="ml-2 font-bold text-red-600">{displayStats.phishingRate}</span>
               </div>
             </div>
           </div>
@@ -222,30 +223,30 @@ const OverviewTab = ({ realStats, loadingStats, displayStats, onRefresh }) => {
 
       {/* Quick Actions */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div style={{ background: '#0f1a2e', border: '1px solid #1a3a52' }} className="p-4 rounded cursor-pointer hover:opacity-80 transition">
+        <div className="bg-white border border-gray-200 p-5 rounded shadow-sm cursor-pointer hover:bg-gray-50 transition">
           <div className="flex items-center gap-3">
-            <AlertTriangle className="w-5 h-5" style={{ color: '#ff4444' }} />
+            <AlertTriangle className="w-6 h-6 text-red-600" />
             <div>
-              <p style={{ color: '#00d9ff' }} className="font-mono font-bold text-sm">Mối Đe Dọa Gần Đây</p>
-              <p style={{ color: '#7a8a99' }} className="text-xs font-mono">Xem chi tiết các mối đe dọa mới nhất</p>
+              <p className="font-mono font-bold text-base text-gray-900">Mối Đe Dọa Gần Đây</p>
+              <p className="text-sm font-mono text-gray-600 mt-1">Xem chi tiết các mối đe dọa mới nhất</p>
             </div>
           </div>
         </div>
-        <div style={{ background: '#0f1a2e', border: '1px solid #1a3a52' }} className="p-4 rounded cursor-pointer hover:opacity-80 transition">
+        <div className="bg-white border border-gray-200 p-5 rounded shadow-sm cursor-pointer hover:bg-gray-50 transition">
           <div className="flex items-center gap-3">
-            <Shield className="w-5 h-5" style={{ color: '#44ff44' }} />
+            <Shield className="w-6 h-6 text-green-600" />
             <div>
-              <p style={{ color: '#00d9ff' }} className="font-mono font-bold text-sm">Bảo Vệ Đang Hoạt Động</p>
-              <p style={{ color: '#7a8a99' }} className="text-xs font-mono">Tất cả hệ thống bảo vệ đang chạy</p>
+              <p className="font-mono font-bold text-base text-gray-900">Bảo Vệ Đang Hoạt Động</p>
+              <p className="text-sm font-mono text-gray-600 mt-1">Tất cả hệ thống bảo vệ đang chạy</p>
             </div>
           </div>
         </div>
-        <div style={{ background: '#0f1a2e', border: '1px solid #1a3a52' }} className="p-4 rounded cursor-pointer hover:opacity-80 transition">
+        <div className="bg-white border border-gray-200 p-5 rounded shadow-sm cursor-pointer hover:bg-gray-50 transition">
           <div className="flex items-center gap-3">
-            <TrendingUp className="w-5 h-5" style={{ color: '#00d9ff' }} />
+            <TrendingUp className="w-6 h-6 text-blue-600" />
             <div>
-              <p style={{ color: '#00d9ff' }} className="font-mono font-bold text-sm">Xu Hướng Tấn Công</p>
-              <p style={{ color: '#7a8a99' }} className="text-xs font-mono">Phân tích xu hướng tấn công</p>
+              <p className="font-mono font-bold text-base text-gray-900">Xu Hướng Tấn Công</p>
+              <p className="text-sm font-mono text-gray-600 mt-1">Phân tích xu hướng tấn công</p>
             </div>
           </div>
         </div>

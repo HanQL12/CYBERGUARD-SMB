@@ -2,11 +2,11 @@
 // In production, these should come from environment variables
 
 const API_CONFIG = {
-  baseUrl: process.env.REACT_APP_API_BASE_URL || 'https://nguyennam0408.app.n8n.cloud/webhook',
+  baseUrl: process.env.REACT_APP_API_BASE_URL || 'http://localhost:5000',
   endpoints: {
-    stats: '/phishing-stats',
+    dashboardData: '/dashboard-data', // Unified API - trả về cả stats và emails
     scanUrl: '/scan-url',
-    getEmails: '/get-emails'
+    reportsData: '/reports-data' // Reports data với daily trends và threat types
   },
   timeout: 30000, // 30 seconds
   retryAttempts: 3,

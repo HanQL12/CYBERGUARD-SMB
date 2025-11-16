@@ -21,3 +21,24 @@
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+
+# Backend
+/backend/venv/
+/backend/env/
+/backend/ENV/
+/backend/__pycache__/
+/backend/*.pyc
+/backend/.env
+/backend/token.json
+/backend/credentials.json
+/backend/*.log
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+Thumbs.db
+.DS_Store

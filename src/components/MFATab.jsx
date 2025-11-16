@@ -61,103 +61,103 @@ const MFATab = () => {
 
   return (
     <div className="space-y-6">
-      <div style={{ background: '#0f1a2e', border: '1px solid #1a3a52' }} className="p-6 rounded">
-        <h2 style={{ color: '#00d9ff' }} className="text-2xl font-mono mb-6">
+      <div className="bg-white border border-gray-200 p-6 rounded shadow-sm">
+        <h2 className="text-gray-800 text-3xl font-mono font-bold mb-6">
           XÁC THỰC ĐA YẾU TỐ THÍCH ỨNG
         </h2>
         
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
-          <div style={{ background: '#002d00', border: '1px solid #44ff44' }} className="p-4 rounded">
-            <div className="flex items-center gap-3 mb-2">
-              <CheckCircle className="w-6 h-6" style={{ color: '#44ff44' }} />
-              <p style={{ color: '#44ff44' }} className="font-mono font-bold">MFA CHỐNG PHISHING</p>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-8">
+          <div className="bg-green-50 border border-green-200 p-5 rounded">
+            <div className="flex items-center gap-3 mb-3">
+              <CheckCircle className="w-7 h-7 text-green-600" />
+              <p className="text-green-700 font-mono font-bold text-lg">MFA CHỐNG PHISHING</p>
             </div>
-            <p style={{ color: '#7a8a99' }} className="text-sm font-mono">
+            <p className="text-gray-600 text-base font-mono">
               ĐÃ KÍCH HOẠT - Sử dụng tiêu chuẩn WebAuthn/FIDO2
             </p>
           </div>
           
-          <div style={{ background: '#0a0e27', border: '1px solid #00d9ff' }} className="p-4 rounded">
-            <div className="flex items-center gap-3 mb-2">
-              <Activity className="w-6 h-6" style={{ color: '#00d9ff' }} />
-              <p style={{ color: '#00d9ff' }} className="font-mono font-bold">PHÁT HIỆN RỦI RO DỰA TRÊN ML</p>
+          <div className="bg-blue-50 border border-blue-200 p-5 rounded">
+            <div className="flex items-center gap-3 mb-3">
+              <Activity className="w-7 h-7 text-blue-600" />
+              <p className="text-blue-700 font-mono font-bold text-lg">PHÁT HIỆN RỦI RO DỰA TRÊN ML</p>
             </div>
-            <p style={{ color: '#7a8a99' }} className="text-sm font-mono">
+            <p className="text-gray-600 text-base font-mono">
               HOẠT ĐỘNG - Xác thực nhận biết ngữ cảnh
             </p>
           </div>
         </div>
 
-        <h3 style={{ color: '#00d9ff' }} className="text-lg font-mono mb-4">
+        <h3 className="text-gray-800 text-xl font-mono font-bold mb-5">
           HOẠT ĐỘNG ĐĂNG NHẬP (24 GIỜ QUA)
         </h3>
         
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
-              <tr style={{ borderBottom: '1px solid #1a3a52' }}>
-                <th style={{ color: '#7a8a99' }} className="px-6 py-3 text-left text-xs font-mono uppercase">THỜI GIAN</th>
-                <th style={{ color: '#7a8a99' }} className="px-6 py-3 text-left text-xs font-mono uppercase">NGƯỜI DÙNG</th>
-                <th style={{ color: '#7a8a99' }} className="px-6 py-3 text-left text-xs font-mono uppercase">VỊ TRÍ</th>
-                <th style={{ color: '#7a8a99' }} className="px-6 py-3 text-left text-xs font-mono uppercase">MFA</th>
-                <th style={{ color: '#7a8a99' }} className="px-6 py-3 text-left text-xs font-mono uppercase">PHƯƠNG THỨC</th>
-                <th style={{ color: '#7a8a99' }} className="px-6 py-3 text-left text-xs font-mono uppercase">RỦI RO</th>
+              <tr className="border-b border-gray-200">
+                <th className="text-gray-600 px-6 py-4 text-left text-sm font-mono font-semibold uppercase">THỜI GIAN</th>
+                <th className="text-gray-600 px-6 py-4 text-left text-sm font-mono font-semibold uppercase">NGƯỜI DÙNG</th>
+                <th className="text-gray-600 px-6 py-4 text-left text-sm font-mono font-semibold uppercase">VỊ TRÍ</th>
+                <th className="text-gray-600 px-6 py-4 text-left text-sm font-mono font-semibold uppercase">MFA</th>
+                <th className="text-gray-600 px-6 py-4 text-left text-sm font-mono font-semibold uppercase">PHƯƠNG THỨC</th>
+                <th className="text-gray-600 px-6 py-4 text-left text-sm font-mono font-semibold uppercase">RỦI RO</th>
               </tr>
             </thead>
-            <tbody className="divide-y" style={{ borderColor: '#1a3a52' }}>
+            <tbody className="divide-y divide-gray-200">
               {mfaLogs.map((log, idx) => (
                 <React.Fragment key={idx}>
-                  <tr className="hover:opacity-80 transition">
-                    <td style={{ color: '#00d9ff' }} className="px-6 py-4 text-sm font-mono">
+                  <tr className="hover:bg-gray-50 transition">
+                    <td className="text-gray-800 px-6 py-4 text-base font-mono">
                       <div className="flex items-center gap-2">
-                        <Clock className="w-3 h-3" />
+                        <Clock className="w-4 h-4 text-gray-500" />
                         {log.time}
                       </div>
                     </td>
-                    <td style={{ color: '#b8c5d6' }} className="px-6 py-4 text-sm font-mono">
+                    <td className="text-gray-700 px-6 py-4 text-base font-mono">
                       <div className="flex items-center gap-2">
-                        <User className="w-3 h-3" />
+                        <User className="w-4 h-4 text-gray-500" />
                         {log.user}
                       </div>
                     </td>
-                    <td style={{ color: '#b8c5d6' }} className="px-6 py-4 text-sm font-mono">
+                    <td className="text-gray-700 px-6 py-4 text-base font-mono">
                       <div className="flex items-center gap-2">
-                        <MapPin className="w-3 h-3" />
+                        <MapPin className="w-4 h-4 text-gray-500" />
                         {log.location}
                       </div>
                     </td>
                     <td className="px-6 py-4">
                       <span 
-                        style={{ 
-                          background: log.mfa === 'VERIFIED' ? '#002d00' : '#1a3a52', 
-                          color: log.mfa === 'VERIFIED' ? '#44ff44' : '#7a8a99' 
-                        }} 
-                        className="px-2 py-1 text-xs font-mono font-bold rounded"
+                        className={`px-3 py-1.5 text-sm font-mono font-bold rounded-md ${
+                          log.mfa === 'VERIFIED' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'
+                        }`}
                       >
                         {getMFALabel(log.mfa)}
                       </span>
                     </td>
-                    <td style={{ color: '#7a8a99' }} className="px-6 py-4 text-sm font-mono">
+                    <td className="text-gray-600 px-6 py-4 text-base font-mono">
                       {log.method}
                     </td>
                     <td className="px-6 py-4">
                       <span 
-                        style={{ 
-                          background: log.risk === 'HIGH' ? '#2d0000' : log.risk === 'MEDIUM' ? '#1a3a52' : '#002d00', 
-                          color: log.risk === 'HIGH' ? '#ff4444' : log.risk === 'MEDIUM' ? '#ff8800' : '#44ff44' 
-                        }} 
-                        className="px-2 py-1 text-xs font-mono font-bold rounded"
+                        className={`px-3 py-1.5 text-sm font-mono font-bold rounded-md ${
+                          log.risk === 'HIGH' 
+                            ? 'bg-red-100 text-red-700' 
+                            : log.risk === 'MEDIUM' 
+                            ? 'bg-yellow-100 text-yellow-700' 
+                            : 'bg-green-100 text-green-700'
+                        }`}
                       >
                         {getRiskLabel(log.risk)}
                       </span>
                     </td>
                   </tr>
                   {log.suspicious && (
-                    <tr style={{ background: '#2d0000' }}>
-                      <td colSpan="6" className="px-6 py-3">
-                        <div className="flex items-center gap-2">
-                          <AlertTriangle className="w-4 h-4" style={{ color: '#ff4444' }} />
-                          <p style={{ color: '#ff4444' }} className="text-sm font-mono">
+                    <tr className="bg-red-50">
+                      <td colSpan="6" className="px-6 py-4">
+                        <div className="flex items-center gap-3">
+                          <AlertTriangle className="w-5 h-5 text-red-600" />
+                          <p className="text-red-700 text-base font-mono font-semibold">
                             ML Engine phát hiện mẫu đăng nhập đáng ngờ - MFA tự động được kích hoạt
                           </p>
                         </div>
@@ -170,14 +170,14 @@ const MFATab = () => {
           </table>
         </div>
 
-        <div style={{ background: '#0a0e27', border: '1px solid #1a3a52' }} className="mt-8 p-4 rounded">
+        <div className="bg-blue-50 border border-blue-200 mt-8 p-5 rounded">
           <div className="flex items-start gap-3">
-            <Shield className="w-5 h-5" style={{ color: '#00d9ff' }} />
+            <Shield className="w-6 h-6 text-blue-600" />
             <div>
-              <h4 style={{ color: '#00d9ff' }} className="font-mono font-bold mb-3">
+              <h4 className="text-blue-700 font-mono font-bold mb-4 text-lg">
                 CÁC TRƯỜNG HỢP KÍCH HOẠT MFA THÍCH ỨNG BẰNG AI:
               </h4>
-              <ul style={{ color: '#7a8a99' }} className="text-sm font-mono space-y-2 list-disc list-inside">
+              <ul className="text-gray-700 text-base font-mono space-y-2 list-disc list-inside">
                 <li>Phát hiện vị trí đăng nhập bất thường bởi mô hình ML địa lý</li>
                 <li>Click vào URL rủi ro cao trong email (phát hiện bởi công cụ phân tích mối đe dọa)</li>
                 <li>Nhiều lần đăng nhập thất bại với phát hiện hành vi bất thường</li>
@@ -188,21 +188,21 @@ const MFATab = () => {
         </div>
 
         {/* MFA Statistics */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
-          <div style={{ background: '#0a0e27', border: '1px solid #1a3a52' }} className="p-4 rounded">
-            <p style={{ color: '#7a8a99' }} className="text-xs font-mono mb-2">TỔNG ĐĂNG NHẬP</p>
-            <p style={{ color: '#00d9ff' }} className="text-2xl font-mono font-bold">24</p>
-            <p style={{ color: '#7a8a99' }} className="text-xs font-mono mt-1">24 giờ qua</p>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mt-6">
+          <div className="bg-gray-50 border border-gray-200 p-5 rounded">
+            <p className="text-gray-600 text-sm font-mono font-semibold mb-3">TỔNG ĐĂNG NHẬP</p>
+            <p className="text-gray-800 text-4xl font-mono font-bold">24</p>
+            <p className="text-gray-500 text-sm font-mono mt-2">24 giờ qua</p>
           </div>
-          <div style={{ background: '#0a0e27', border: '1px solid #1a3a52' }} className="p-4 rounded">
-            <p style={{ color: '#7a8a99' }} className="text-xs font-mono mb-2">MFA ĐÃ KÍCH HOẠT</p>
-            <p style={{ color: '#44ff44' }} className="text-2xl font-mono font-bold">18</p>
-            <p style={{ color: '#7a8a99' }} className="text-xs font-mono mt-1">75% tổng số</p>
+          <div className="bg-gray-50 border border-gray-200 p-5 rounded">
+            <p className="text-gray-600 text-sm font-mono font-semibold mb-3">MFA ĐÃ KÍCH HOẠT</p>
+            <p className="text-green-600 text-4xl font-mono font-bold">18</p>
+            <p className="text-gray-500 text-sm font-mono mt-2">75% tổng số</p>
           </div>
-          <div style={{ background: '#0a0e27', border: '1px solid #1a3a52' }} className="p-4 rounded">
-            <p style={{ color: '#7a8a99' }} className="text-xs font-mono mb-2">RỦI RO CAO</p>
-            <p style={{ color: '#ff4444' }} className="text-2xl font-mono font-bold">2</p>
-            <p style={{ color: '#7a8a99' }} className="text-xs font-mono mt-1">Đã được bảo vệ</p>
+          <div className="bg-gray-50 border border-gray-200 p-5 rounded">
+            <p className="text-gray-600 text-sm font-mono font-semibold mb-3">RỦI RO CAO</p>
+            <p className="text-red-600 text-4xl font-mono font-bold">2</p>
+            <p className="text-gray-500 text-sm font-mono mt-2">Đã được bảo vệ</p>
           </div>
         </div>
       </div>

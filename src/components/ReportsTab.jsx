@@ -1,62 +1,139 @@
-import React, { useState } from 'react';
-import { BarChart3, Download, Calendar, TrendingUp, AlertTriangle, FileText } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { BarChart3, Download, Calendar, TrendingUp, AlertTriangle, FileText, RefreshCw } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from 'recharts';
 
-const ReportsTab = () => {
+const BACKEND_CONFIG = {
+  baseUrl: process.env.REACT_APP_API_BASE_URL || 'http://localhost:5000',
+  endpoints: {
+    reportsData: '/reports-data'
+  }
+};
+
+const ReportsTab = ({ displayStats }) => {
   const [selectedPeriod, setSelectedPeriod] = useState('7days');
+  const [loading, setLoading] = useState(true);
+  const [reportsData, setReportsData] = useState({
+    summary: {
+      total_emails: 0,
+      threats_detected: 0,
+      detection_rate: '0%',
+      avg_analysis_time: '0.0s'
+    },
+    daily_trends: [],
+    threat_types: []
+  });
 
-  const dailyData = [
-    { date: '15/01', threats: 12, safe: 45, blocked: 12 },
-    { date: '16/01', threats: 8, safe: 52, blocked: 8 },
-    { date: '17/01', threats: 15, safe: 48, blocked: 15 },
-    { date: '18/01', threats: 10, safe: 55, blocked: 10 },
-    { date: '19/01', threats: 18, safe: 42, blocked: 18 },
-    { date: '20/01', threats: 7, safe: 58, blocked: 7 },
-    { date: '21/01', threats: 13, safe: 51, blocked: 13 }
-  ];
-
-  const threatTypeData = [
-    { type: 'URL Độc Hại', count: 45, percentage: 60 },
-    { type: 'File Đính Kèm', count: 20, percentage: 27 },
-    { type: 'CEO Fraud', count: 10, percentage: 13 }
-  ];
+  // Fetch reports data
+  useEffect(() => {
+    const fetchReportsData = async () => {
+      try {
+        setLoading(true);
+        const days = selectedPeriod === '7days' ? 7 : selectedPeriod === '30days' ? 30 : selectedPeriod === '90days' ? 90 : 7;
+        
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 30000);
+        
+        const response = await fetch(`${BACKEND_CONFIG.baseUrl}${BACKEND_CONFIG.endpoints.reportsData}?days=${days}`, {
+          signal: controller.signal
+        });
+        
+        clearTimeout(timeoutId);
+        
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+        
+        const data = await response.json();
+        setReportsData(data);
+      } catch (error) {
+        if (error.name !== 'AbortError') {
+          console.error('Error fetching reports data:', error);
+        }
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    fetchReportsData();
+  }, [selectedPeriod]);
+  
+  const handleRefresh = () => {
+    const fetchReportsData = async () => {
+      try {
+        setLoading(true);
+        const days = selectedPeriod === '7days' ? 7 : selectedPeriod === '30days' ? 30 : selectedPeriod === '90days' ? 90 : 7;
+        
+        const response = await fetch(`${BACKEND_CONFIG.baseUrl}${BACKEND_CONFIG.endpoints.reportsData}?days=${days}&refresh=true`);
+        
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+        
+        const data = await response.json();
+        setReportsData(data);
+      } catch (error) {
+        console.error('Error fetching reports data:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    fetchReportsData();
+  };
+  
+  // Use real data or fallback to empty
+  const dailyData = reportsData.daily_trends.length > 0 
+    ? reportsData.daily_trends 
+    : [
+        { date: '15/01', threats: 0, safe: 0, blocked: 0 },
+        { date: '16/01', threats: 0, safe: 0, blocked: 0 },
+        { date: '17/01', threats: 0, safe: 0, blocked: 0 },
+        { date: '18/01', threats: 0, safe: 0, blocked: 0 },
+        { date: '19/01', threats: 0, safe: 0, blocked: 0 },
+        { date: '20/01', threats: 0, safe: 0, blocked: 0 },
+        { date: '21/01', threats: 0, safe: 0, blocked: 0 }
+      ];
+  
+  const threatTypeData = reportsData.threat_types.length > 0
+    ? reportsData.threat_types
+    : [
+        { type: 'URL Độc Hại', count: 0, percentage: 0 },
+        { type: 'File Đính Kèm', count: 0, percentage: 0 },
+        { type: 'CEO Fraud', count: 0, percentage: 0 }
+      ];
 
   const customTooltipStyle = {
-    backgroundColor: '#0f1a2e',
-    border: '1px solid #1a3a52',
-    color: '#00d9ff',
+    backgroundColor: '#ffffff',
+    border: '1px solid #e5e7eb',
+    color: '#1f2937',
     fontFamily: 'monospace',
-    fontSize: '12px',
-    padding: '8px'
+    fontSize: '14px',
+    padding: '12px',
+    borderRadius: '6px',
+    boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)'
   };
 
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div style={{ background: '#0f1a2e', border: '1px solid #1a3a52' }} className="p-6 rounded">
+      <div className="bg-white border border-gray-200 p-6 rounded shadow-sm">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <BarChart3 className="w-6 h-6" style={{ color: '#00d9ff' }} />
+            <BarChart3 className="w-7 h-7 text-blue-600" />
             <div>
-              <h2 style={{ color: '#00d9ff' }} className="text-2xl font-mono font-bold">
+              <h2 className="text-3xl font-mono font-bold text-gray-900">
                 BÁO CÁO & PHÂN TÍCH
               </h2>
-              <p style={{ color: '#7a8a99' }} className="text-sm font-mono mt-1">
+              <p className="text-base text-gray-600 font-mono mt-2">
                 Xem báo cáo chi tiết về tình hình bảo mật email
               </p>
             </div>
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-3">
             <select
               value={selectedPeriod}
               onChange={(e) => setSelectedPeriod(e.target.value)}
-              style={{
-                background: '#0a0e27',
-                border: '1px solid #1a3a52',
-                color: '#00d9ff',
-                colorScheme: 'dark'
-              }}
-              className="px-4 py-2 rounded text-xs font-mono focus:outline-none focus:border-cyan-500"
+              className="px-5 py-2.5 rounded-md text-sm font-mono bg-white border border-gray-300 text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             >
               <option value="7days">7 Ngày Qua</option>
               <option value="30days">30 Ngày Qua</option>
@@ -64,108 +141,135 @@ const ReportsTab = () => {
               <option value="custom">Tùy Chỉnh</option>
             </select>
             <button
-              style={{ background: '#00d9ff', color: '#0a0e27' }}
-              className="px-4 py-2 rounded text-xs font-mono font-bold hover:opacity-80 transition flex items-center gap-2"
+              onClick={handleRefresh}
+              disabled={loading}
+              className="px-5 py-2.5 rounded-md text-sm font-mono font-bold hover:bg-gray-200 transition bg-gray-100 text-gray-700 flex items-center gap-2 disabled:opacity-50"
             >
-              <Download className="w-4 h-4" />
+              <RefreshCw className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} />
+              LÀM MỚI
+            </button>
+            <button
+              className="px-5 py-2.5 rounded-md text-sm font-mono font-bold hover:bg-blue-700 transition bg-blue-600 text-white flex items-center gap-2"
+            >
+              <Download className="w-5 h-5" />
               XUẤT PDF
             </button>
           </div>
         </div>
       </div>
 
-      {/* Summary Cards */}
+      {/* Summary Cards - Đồng bộ với displayStats từ App.js */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div style={{ background: '#0f1a2e', border: '1px solid #1a3a52' }} className="p-4 rounded">
-          <div className="flex items-center justify-between mb-2">
-            <p style={{ color: '#7a8a99' }} className="text-xs font-mono">TỔNG EMAIL</p>
-            <FileText className="w-4 h-4" style={{ color: '#00d9ff' }} />
+        <div className="bg-white border border-gray-200 p-5 rounded shadow-sm">
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-sm font-mono font-semibold text-gray-600">TỔNG EMAIL</p>
+            <FileText className="w-5 h-5 text-blue-600" />
           </div>
-          <p style={{ color: '#00d9ff' }} className="text-3xl font-bold font-mono">284</p>
-          <p style={{ color: '#7a8a99' }} className="text-xs font-mono mt-1">Đã quét</p>
+          <p className="text-4xl font-bold font-mono text-gray-900">
+            {displayStats?.actualTotal ?? reportsData.summary.total_emails ?? 0}
+          </p>
+          <p className="text-sm font-mono mt-2 text-gray-500">Đã quét</p>
         </div>
-        <div style={{ background: '#0f1a2e', border: '1px solid #1a3a52' }} className="p-4 rounded">
-          <div className="flex items-center justify-between mb-2">
-            <p style={{ color: '#7a8a99' }} className="text-xs font-mono">MỐI ĐE DỌA</p>
-            <AlertTriangle className="w-4 h-4" style={{ color: '#ff4444' }} />
+        <div className="bg-white border border-gray-200 p-5 rounded shadow-sm">
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-sm font-mono font-semibold text-gray-600">MỐI ĐE DỌA</p>
+            <AlertTriangle className="w-5 h-5 text-red-600" />
           </div>
-          <p style={{ color: '#ff4444' }} className="text-3xl font-bold font-mono">37</p>
-          <p style={{ color: '#7a8a99' }} className="text-xs font-mono mt-1">Đã phát hiện</p>
+          <p className="text-4xl font-bold font-mono text-red-600">
+            {displayStats?.actualPhishing ?? reportsData.summary.threats_detected ?? 0}
+          </p>
+          <p className="text-sm font-mono mt-2 text-gray-500">Đã phát hiện</p>
         </div>
-        <div style={{ background: '#0f1a2e', border: '1px solid #1a3a52' }} className="p-4 rounded">
-          <div className="flex items-center justify-between mb-2">
-            <p style={{ color: '#7a8a99' }} className="text-xs font-mono">TỶ LỆ PHÁT HIỆN</p>
-            <TrendingUp className="w-4 h-4" style={{ color: '#44ff44' }} />
+        <div className="bg-white border border-gray-200 p-5 rounded shadow-sm">
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-sm font-mono font-semibold text-gray-600">TỶ LỆ PHÁT HIỆN</p>
+            <TrendingUp className="w-5 h-5 text-green-600" />
           </div>
-          <p style={{ color: '#44ff44' }} className="text-3xl font-bold font-mono">100%</p>
-          <p style={{ color: '#7a8a99' }} className="text-xs font-mono mt-1">Tự động chặn</p>
+          <p className="text-4xl font-bold font-mono text-green-600">
+            {displayStats?.phishingRate ?? reportsData.summary.detection_rate ?? '0%'}
+          </p>
+          <p className="text-sm font-mono mt-2 text-gray-500">Tự động chặn</p>
         </div>
-        <div style={{ background: '#0f1a2e', border: '1px solid #1a3a52' }} className="p-4 rounded">
-          <div className="flex items-center justify-between mb-2">
-            <p style={{ color: '#7a8a99' }} className="text-xs font-mono">THỜI GIAN TRUNG BÌNH</p>
-            <Calendar className="w-4 h-4" style={{ color: '#00d9ff' }} />
+        <div className="bg-white border border-gray-200 p-5 rounded shadow-sm">
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-sm font-mono font-semibold text-gray-600">THỜI GIAN TRUNG BÌNH</p>
+            <Calendar className="w-5 h-5 text-blue-600" />
           </div>
-          <p style={{ color: '#00d9ff' }} className="text-3xl font-bold font-mono">0.8s</p>
-          <p style={{ color: '#7a8a99' }} className="text-xs font-mono mt-1">Phân tích</p>
+          <p className="text-4xl font-bold font-mono text-blue-600">
+            {loading ? '...' : reportsData.summary.avg_analysis_time}
+          </p>
+          <p className="text-sm font-mono mt-2 text-gray-500">Phân tích</p>
         </div>
       </div>
 
       {/* Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* Daily Trend */}
-        <div style={{ background: '#0f1a2e', border: '1px solid #1a3a52' }} className="p-6 rounded">
-          <h3 style={{ color: '#00d9ff' }} className="text-lg font-mono mb-4">
+        <div className="bg-white border border-gray-200 p-6 rounded shadow-sm">
+          <h3 className="text-xl font-mono mb-5 font-bold text-gray-900">
             XU HƯỚNG HÀNG NGÀY
           </h3>
-          <ResponsiveContainer width="100%" height={300}>
-            <LineChart data={dailyData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#1a3a52" />
-              <XAxis dataKey="date" stroke="#7a8a99" style={{ fontFamily: 'monospace', fontSize: '10px' }} />
-              <YAxis stroke="#7a8a99" style={{ fontFamily: 'monospace', fontSize: '10px' }} />
-              <Tooltip contentStyle={customTooltipStyle} />
-              <Line type="monotone" dataKey="threats" stroke="#ff4444" strokeWidth={2} name="Mối Đe Dọa" />
-              <Line type="monotone" dataKey="safe" stroke="#44ff44" strokeWidth={2} name="An Toàn" />
-              <Line type="monotone" dataKey="blocked" stroke="#00d9ff" strokeWidth={2} name="Đã Chặn" />
-            </LineChart>
-          </ResponsiveContainer>
+          {loading ? (
+            <div className="flex items-center justify-center h-[300px]">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+            </div>
+          ) : (
+            <ResponsiveContainer width="100%" height={300}>
+              <LineChart data={dailyData}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                <XAxis dataKey="date" stroke="#6b7280" style={{ fontFamily: 'monospace', fontSize: '12px' }} />
+                <YAxis stroke="#6b7280" style={{ fontFamily: 'monospace', fontSize: '12px' }} />
+                <Tooltip contentStyle={customTooltipStyle} />
+                <Line type="monotone" dataKey="threats" stroke="#ef4444" strokeWidth={2} name="Mối Đe Dọa" />
+                <Line type="monotone" dataKey="safe" stroke="#22c55e" strokeWidth={2} name="An Toàn" />
+                <Line type="monotone" dataKey="blocked" stroke="#2563eb" strokeWidth={2} name="Đã Chặn" />
+              </LineChart>
+            </ResponsiveContainer>
+          )}
         </div>
 
         {/* Threat Types */}
-        <div style={{ background: '#0f1a2e', border: '1px solid #1a3a52' }} className="p-6 rounded">
-          <h3 style={{ color: '#00d9ff' }} className="text-lg font-mono mb-4">
+        <div className="bg-white border border-gray-200 p-6 rounded shadow-sm">
+          <h3 className="text-xl font-mono mb-5 font-bold text-gray-900">
             PHÂN LOẠI MỐI ĐE DỌA
           </h3>
-          <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={threatTypeData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#1a3a52" />
-              <XAxis dataKey="type" stroke="#7a8a99" style={{ fontFamily: 'monospace', fontSize: '10px' }} />
-              <YAxis stroke="#7a8a99" style={{ fontFamily: 'monospace', fontSize: '10px' }} />
-              <Tooltip contentStyle={customTooltipStyle} />
-              <Bar dataKey="count" fill="#00d9ff" name="Số Lượng" />
-            </BarChart>
-          </ResponsiveContainer>
+          {loading ? (
+            <div className="flex items-center justify-center h-[300px]">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+            </div>
+          ) : (
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart data={threatTypeData}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                <XAxis dataKey="type" stroke="#6b7280" style={{ fontFamily: 'monospace', fontSize: '12px' }} />
+                <YAxis stroke="#6b7280" style={{ fontFamily: 'monospace', fontSize: '12px' }} />
+                <Tooltip contentStyle={customTooltipStyle} />
+                <Bar dataKey="count" fill="#2563eb" name="Số Lượng" />
+              </BarChart>
+            </ResponsiveContainer>
+          )}
         </div>
       </div>
 
       {/* Detailed Report */}
-      <div style={{ background: '#0f1a2e', border: '1px solid #1a3a52' }} className="p-6 rounded">
-        <h3 style={{ color: '#00d9ff' }} className="text-lg font-mono mb-4">
+      <div className="bg-white border border-gray-200 p-6 rounded shadow-sm">
+        <h3 className="text-xl font-mono mb-5 font-bold text-gray-900">
           BÁO CÁO CHI TIẾT
         </h3>
         <div className="space-y-4">
           {threatTypeData.map((item, idx) => (
-            <div key={idx} style={{ background: '#0a0e27', border: '1px solid #1a3a52' }} className="p-4 rounded">
-              <div className="flex items-center justify-between mb-2">
-                <p style={{ color: '#00d9ff' }} className="font-mono font-bold">{item.type}</p>
-                <p style={{ color: '#7a8a99' }} className="text-sm font-mono">
+            <div key={idx} className="bg-gray-50 border border-gray-200 p-5 rounded">
+              <div className="flex items-center justify-between mb-3">
+                <p className="font-mono font-bold text-base text-gray-900">{item.type}</p>
+                <p className="text-base font-mono text-gray-600 font-semibold">
                   {item.count} mối đe dọa ({item.percentage}%)
                 </p>
               </div>
-              <div className="w-full bg-gray-700 rounded-full h-2">
+              <div className="w-full bg-gray-200 rounded-full h-3">
                 <div
-                  className="h-2 rounded-full"
+                  className="h-3 rounded-full"
                   style={{
-                    background: idx === 0 ? '#ff4444' : idx === 1 ? '#ff8800' : '#00d9ff',
+                    background: idx === 0 ? '#ef4444' : idx === 1 ? '#f97316' : '#2563eb',
                     width: `${item.percentage}%`
                   }}
                 ></div>

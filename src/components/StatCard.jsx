@@ -1,13 +1,13 @@
 import React from 'react';
 
-const StatCard = ({ title, value, icon: Icon, iconColor, subtitle, textColor = '#00d9ff' }) => {
+const StatCard = ({ title, value, icon: Icon, iconColor, subtitle, textColor = '#2563eb' }) => {
   return (
-    <div style={{ background: '#0f1a2e', border: '1px solid #1a3a52' }} className="p-4 rounded">
-      <div className="flex items-center justify-between mb-2">
-        <p style={{ color: '#7a8a99' }} className="text-xs font-mono">{title.toUpperCase()}</p>
-        {Icon && <Icon className="w-5 h-5" style={{ color: iconColor || '#00d9ff' }} />}
+    <div className="bg-white border border-gray-200 p-5 rounded shadow-sm">
+      <div className="flex items-center justify-between mb-3">
+        <p className="text-gray-600 text-sm font-mono font-semibold">{title.toUpperCase()}</p>
+        {Icon && <Icon className="w-6 h-6" style={{ color: iconColor || '#2563eb' }} />}
       </div>
-      <p style={{ color: textColor }} className="text-3xl font-bold font-mono mt-2">
+      <p style={{ color: textColor }} className="text-4xl font-bold font-mono mt-2">
         {value === undefined || value === null ? (
           <span className="animate-pulse">...</span>
         ) : (
@@ -15,7 +15,7 @@ const StatCard = ({ title, value, icon: Icon, iconColor, subtitle, textColor = '
         )}
       </p>
       {subtitle && (
-        <p style={{ color: '#7a8a99' }} className="text-xs font-mono mt-1">{subtitle}</p>
+        <p className="text-gray-500 text-sm font-mono mt-2">{subtitle}</p>
       )}
     </div>
   );

@@ -68,24 +68,23 @@ const PolicyManagementTab = () => {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div style={{ background: '#0f1a2e', border: '1px solid #1a3a52' }} className="p-6 rounded">
+      <div className="bg-white border border-gray-200 p-6 rounded shadow-sm">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <FileText className="w-6 h-6" style={{ color: '#00d9ff' }} />
+            <FileText className="w-7 h-7 text-blue-600" />
             <div>
-              <h2 style={{ color: '#00d9ff' }} className="text-2xl font-mono font-bold">
+              <h2 className="text-3xl font-mono font-bold text-gray-900">
                 QUẢN LÝ CHÍNH SÁCH BẢO MẬT
               </h2>
-              <p style={{ color: '#7a8a99' }} className="text-sm font-mono mt-1">
+              <p className="text-base text-gray-600 font-mono mt-2">
                 Cấu hình các chính sách tự động để bảo vệ email
               </p>
             </div>
           </div>
           <button
-            style={{ background: '#00d9ff', color: '#0a0e27' }}
-            className="px-4 py-2 rounded text-xs font-mono font-bold hover:opacity-80 transition flex items-center gap-2"
+            className="px-5 py-2.5 rounded-md text-sm font-mono font-bold hover:bg-blue-700 transition bg-blue-600 text-white flex items-center gap-2"
           >
-            <Plus className="w-4 h-4" />
+            <Plus className="w-5 h-5" />
             TẠO CHÍNH SÁCH MỚI
           </button>
         </div>
@@ -96,54 +95,46 @@ const PolicyManagementTab = () => {
         {policies.map(policy => (
           <div
             key={policy.id}
-            style={{ background: '#0f1a2e', border: '1px solid #1a3a52' }}
-            className="p-6 rounded"
+            className="bg-white border border-gray-200 p-6 rounded shadow-sm"
           >
-            <div className="flex items-start justify-between mb-4">
+            <div className="flex items-start justify-between mb-5">
               <div className="flex-1">
-                <div className="flex items-center gap-3 mb-2">
-                  <Shield className="w-5 h-5" style={{ color: '#00d9ff' }} />
-                  <h3 style={{ color: '#00d9ff' }} className="text-lg font-mono font-bold">
+                <div className="flex items-center gap-3 mb-3 flex-wrap">
+                  <Shield className="w-6 h-6 text-blue-600" />
+                  <h3 className="text-xl font-mono font-bold text-gray-900">
                     {policy.name}
                   </h3>
                   <span
-                    className="px-3 py-1 rounded text-xs font-mono font-bold"
-                    style={{
-                      background: policy.enabled ? '#002d00' : '#1a3a52',
-                      color: policy.enabled ? '#44ff44' : '#7a8a99'
-                    }}
+                    className={`px-4 py-1.5 rounded-md text-sm font-mono font-bold ${
+                      policy.enabled ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'
+                    }`}
                   >
                     {policy.enabled ? 'KÍCH HOẠT' : 'TẮT'}
                   </span>
                   <span
-                    className="px-3 py-1 rounded text-xs font-mono font-bold"
-                    style={{
-                      background: '#1a3a52',
-                      color: getActionColor(policy.action)
-                    }}
+                    className="px-4 py-1.5 rounded-md text-sm font-mono font-bold bg-gray-100 text-gray-700"
+                    style={{ color: getActionColor(policy.action) }}
                   >
                     {getActionLabel(policy.action)}
                   </span>
                 </div>
-                <p style={{ color: '#7a8a99' }} className="text-sm font-mono">
+                <p className="text-base text-gray-600 font-mono">
                   {policy.description}
                 </p>
               </div>
-              <div className="flex gap-2">
+              <div className="flex gap-3">
                 <button
                   onClick={() => togglePolicy(policy.id)}
-                  style={{
-                    background: policy.enabled ? '#2d0000' : '#002d00',
-                    color: policy.enabled ? '#ff4444' : '#44ff44',
-                    border: '1px solid #1a3a52'
-                  }}
-                  className="px-4 py-2 rounded text-xs font-mono hover:opacity-80 transition"
+                  className={`px-5 py-2.5 rounded-md text-sm font-mono font-bold hover:opacity-90 transition ${
+                    policy.enabled 
+                      ? 'bg-red-100 text-red-700 hover:bg-red-200' 
+                      : 'bg-green-100 text-green-700 hover:bg-green-200'
+                  }`}
                 >
                   {policy.enabled ? 'TẮT' : 'BẬT'}
                 </button>
                 <button
-                  style={{ background: '#1a3a52', color: '#00d9ff', border: '1px solid #1a3a52' }}
-                  className="px-4 py-2 rounded text-xs font-mono hover:opacity-80 transition"
+                  className="px-5 py-2.5 rounded-md text-sm font-mono font-bold hover:bg-gray-200 transition bg-gray-100 text-gray-700"
                 >
                   CHỈNH SỬA
                 </button>
@@ -151,28 +142,30 @@ const PolicyManagementTab = () => {
             </div>
 
             {/* Policy Details */}
-            <div className="grid grid-cols-3 gap-4 mt-4">
-              <div style={{ background: '#0a0e27', border: '1px solid #1a3a52' }} className="p-3 rounded">
-                <p style={{ color: '#7a8a99' }} className="text-xs font-mono mb-1">LOẠI CHÍNH SÁCH</p>
-                <p style={{ color: '#00d9ff' }} className="text-sm font-mono font-bold">
+            <div className="grid grid-cols-3 gap-4 mt-5">
+              <div className="bg-gray-50 border border-gray-200 p-4 rounded">
+                <p className="text-sm font-mono mb-2 font-semibold text-gray-600">LOẠI CHÍNH SÁCH</p>
+                <p className="text-base font-mono font-bold text-gray-900">
                   {policy.type.replace('_', ' ').toUpperCase()}
                 </p>
               </div>
-              <div style={{ background: '#0a0e27', border: '1px solid #1a3a52' }} className="p-3 rounded">
-                <p style={{ color: '#7a8a99' }} className="text-xs font-mono mb-1">HÀNH ĐỘNG</p>
-                <p style={{ color: getActionColor(policy.action) }} className="text-sm font-mono font-bold">
+              <div className="bg-gray-50 border border-gray-200 p-4 rounded">
+                <p className="text-sm font-mono mb-2 font-semibold text-gray-600">HÀNH ĐỘNG</p>
+                <p className="text-base font-mono font-bold" style={{ color: getActionColor(policy.action) }}>
                   {getActionLabel(policy.action)}
                 </p>
               </div>
-              <div style={{ background: '#0a0e27', border: '1px solid #1a3a52' }} className="p-3 rounded">
-                <p style={{ color: '#7a8a99' }} className="text-xs font-mono mb-1">TRẠNG THÁI</p>
+              <div className="bg-gray-50 border border-gray-200 p-4 rounded">
+                <p className="text-sm font-mono mb-2 font-semibold text-gray-600">TRẠNG THÁI</p>
                 <div className="flex items-center gap-2">
                   {policy.enabled ? (
-                    <CheckCircle className="w-4 h-4" style={{ color: '#44ff44' }} />
+                    <CheckCircle className="w-5 h-5 text-green-600" />
                   ) : (
-                    <AlertTriangle className="w-4 h-4" style={{ color: '#7a8a99' }} />
+                    <AlertTriangle className="w-5 h-5 text-gray-400" />
                   )}
-                  <p style={{ color: policy.enabled ? '#44ff44' : '#7a8a99' }} className="text-sm font-mono font-bold">
+                  <p className={`text-base font-mono font-bold ${
+                    policy.enabled ? 'text-green-600' : 'text-gray-500'
+                  }`}>
                     {policy.enabled ? 'HOẠT ĐỘNG' : 'TẮT'}
                   </p>
                 </div>
@@ -183,14 +176,14 @@ const PolicyManagementTab = () => {
       </div>
 
       {/* Info Box */}
-      <div style={{ background: '#0a0e27', border: '1px solid #1a3a52' }} className="p-4 rounded">
+      <div className="bg-blue-50 border border-blue-200 p-5 rounded shadow-sm">
         <div className="flex items-start gap-3">
-          <AlertTriangle className="w-5 h-5" style={{ color: '#00d9ff' }} />
+          <AlertTriangle className="w-6 h-6 text-blue-600" />
           <div>
-            <h4 style={{ color: '#00d9ff' }} className="font-mono font-bold mb-2">
+            <h4 className="text-blue-700 font-mono font-bold mb-3 text-lg">
               LƯU Ý VỀ CHÍNH SÁCH
             </h4>
-            <ul style={{ color: '#7a8a99' }} className="text-sm font-mono space-y-1 list-disc list-inside">
+            <ul className="text-gray-700 text-base font-mono space-y-2 list-disc list-inside">
               <li>Chính sách được áp dụng tự động cho tất cả email mới</li>
               <li>Thay đổi chính sách có hiệu lực ngay lập tức</li>
               <li>Hệ thống sẽ ghi log tất cả hành động theo chính sách</li>
