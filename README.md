@@ -383,6 +383,8 @@ pip install -r requirements.txt
 
 ## 🎨 Screenshots
 
+![CYBERGUARD SMB Dashboard Demo](./public/UI.jpg)
+
 ### Dashboard Tổng Quan
 - Thống kê real-time về email đã quét
 - Widgets có thể đóng/mở
