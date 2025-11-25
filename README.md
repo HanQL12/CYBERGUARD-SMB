@@ -1,84 +1,99 @@
-# 🛡️ CYBERGUARD SMB - Email Security Dashboard
+# 🛡️ CYBERGUARD SMB
 
-**Giải pháp Bảo mật Email toàn diện cho Doanh nghiệp Vừa và Nhỏ (SMB)**
+**Giải pháp Bảo mật Email Thông minh cho Doanh nghiệp Vừa và Nhỏ**
 
-CYBERGUARD SMB là một hệ thống dashboard bảo mật email thông minh, sử dụng AI và Machine Learning để phát hiện và bảo vệ chống lại các mối đe dọa email như phishing, malware, và CEO fraud (giả mạo CEO). Hệ thống được thiết kế đặc biệt cho ngữ cảnh doanh nghiệp Việt Nam.
-
-![Version](https://img.shields.io/badge/version-2.1-blue.svg)
-![License](https://img.shields.io/badge/license-Proprietary-red.svg)
+[![Version](https://img.shields.io/badge/version-2.1-blue.svg)](https://github.com/HanQL12/CYBERGUARD-SMB)
+[![License](https://img.shields.io/badge/license-Proprietary-red.svg)](LICENSE)
 
 ---
 
-## 📋 Mục Lục
+## 🎯 Về CYBERGUARD SMB
 
-- [Tính Năng Chính](#-tính-năng-chính)
-- [Yêu Cầu Hệ Thống](#-yêu-cầu-hệ-thống)
-- [Cài Đặt](#-cài-đặt)
-- [Cấu Hình](#-cấu-hình)
-- [Chạy Dự Án](#-chạy-dự-án)
-- [Cấu Trúc Project](#-cấu-trúc-project)
-- [API Documentation](#-api-documentation)
-- [Troubleshooting](#-troubleshooting)
-- [Tài Liệu Tham Khảo](#-tài-liệu-tham-khảo)
+CYBERGUARD SMB là một **startup giải pháp bảo mật email** được thiết kế đặc biệt cho các doanh nghiệp vừa và nhỏ (SMB) tại Việt Nam. Chúng tôi giải quyết bài toán **phát hiện và ngăn chặn các mối đe dọa email** như phishing, malware, và đặc biệt là **CEO fraud** (giả mạo CEO) - một vấn đề nghiêm trọng đang gia tăng trong môi trường doanh nghiệp Việt Nam.
 
----
+### 💡 Ý Tưởng Khởi Nghiệp
 
-## ✨ Tính Năng Chính
+Trong bối cảnh số hóa, email vẫn là kênh giao tiếp chính của doanh nghiệp, nhưng cũng là **vector tấn công phổ biến nhất**. Các doanh nghiệp lớn có ngân sách cho các giải pháp enterprise đắt đỏ, nhưng **SMB thường không có đủ nguồn lực** để triển khai các hệ thống bảo mật phức tạp.
 
-### 🔍 Phát Hiện & Phân Tích Thông Minh
-
-- **✅ Phát hiện URL độc hại**: Quét và phân tích URL trong email bằng VirusTotal API với 90+ security vendors
-- **✅ Phát hiện file đính kèm độc hại**: Phân tích hash SHA256 của file với VirusTotal
-- **✅ Phát hiện email giả mạo CEO**: AI phân tích ngữ cảnh tiếng Việt, phát hiện lừa đảo chuyển tiền
-- **✅ Phân loại tự động**: Gán nhãn SAFE/PHISHING dựa trên kết quả phân tích tuần tự (File > URL > CEO Fraud)
-- **✅ Risk Scoring**: Đánh giá mức độ rủi ro từ 0-100% cho mỗi email
-
-### 🛡️ Bảo Vệ Chủ Động
-
-- **✅ Multi-Factor Authentication (MFA)**: Bảo vệ khi truy cập URL độc hại
-- **✅ Sandbox Environment**: Môi trường cô lập để mở file đáng ngờ an toàn
-- **✅ Network Monitoring**: Giám sát hoạt động mạng khi mở file
-- **✅ Auto Disconnect**: Tự động ngắt kết nối khi phát hiện hành vi đáng ngờ
-
-### 📊 Giám Sát & Báo Cáo
-
-- **✅ Dashboard Tổng Quan**: Thống kê real-time về email đã quét, tỷ lệ phát hiện
-- **✅ Phân Tích Chi Tiết**: Xem phân tích đầy đủ từng email, URL, file với modal chi tiết
-- **✅ Báo Cáo & Xu Hướng**: Biểu đồ xu hướng hàng ngày, phân loại mối đe dọa
-- **✅ Lịch Sử Quét**: Theo dõi lịch sử quét URL và email
-- **✅ Export PDF**: Xuất báo cáo định kỳ về tình hình bảo mật
-
-### 🎨 Giao Diện Người Dùng
-
-- **✅ Theme Sáng**: Giao diện hiện đại với nền sáng, dễ nhìn, chuyên nghiệp
-- **✅ Responsive Design**: Tự động điều chỉnh trên mobile, tablet, desktop
-- **✅ Real-time Updates**: Tự động làm mới dữ liệu mỗi 30 giây
-- **✅ Vietnamese Language**: 100% giao diện tiếng Việt
+**CYBERGUARD SMB** ra đời để:
+- ✅ Cung cấp giải pháp **giá cả phải chăng** cho SMB
+- ✅ Tự động hóa hoàn toàn quy trình phát hiện mối đe dọa
+- ✅ Tập trung vào **ngữ cảnh tiếng Việt** và các mẫu tấn công phổ biến tại Việt Nam
+- ✅ Giao diện đơn giản, dễ sử dụng, không cần chuyên gia IT
 
 ---
 
-## 💻 Yêu Cầu Hệ Thống
+## ✨ Tính Năng Nổi Bật
 
-### Frontend (React)
+### 🔍 Phát Hiện Đa Lớp Thông Minh
+
+- **📎 Phân tích File đính kèm**: Tự động quét và phát hiện malware trong file đính kèm bằng VirusTotal (90+ security vendors)
+- **🔗 Phân tích URL**: Kiểm tra tất cả links trong email, phát hiện phishing sites và malicious domains
+- **🤖 AI Phát hiện CEO Fraud**: Sử dụng AI (Google Gemini) để phân tích ngữ cảnh tiếng Việt, phát hiện email giả mạo CEO yêu cầu chuyển tiền
+
+### 🚀 Tự Động Hóa Hoàn Toàn
+
+- **Tự động quét email**: Tích hợp Gmail API, tự động quét và phân loại email mới
+- **Gán nhãn thông minh**: Tự động gán label PHISHING/SAFE cho email
+- **Xử lý đa luồng**: Hỗ trợ 2 API keys để quét song song, tăng tốc độ xử lý
+
+### 📊 Dashboard Trực Quan
+
+- **Thống kê real-time**: Theo dõi số lượng email đã quét, tỷ lệ phát hiện, xu hướng tấn công
+- **Báo cáo chi tiết**: Biểu đồ xu hướng hàng ngày, phân loại mối đe dọa, export PDF
+- **Phân tích từng email**: Xem chi tiết phân tích của từng email, URL, file với risk score
+
+### 🎨 Giao Diện Hiện Đại
+
+- **Theme sáng, dễ nhìn**: Giao diện chuyên nghiệp với font size lớn, dễ đọc
+- **Responsive design**: Tự động điều chỉnh trên mobile, tablet, desktop
+- **100% tiếng Việt**: Giao diện hoàn toàn bằng tiếng Việt
+
+---
+
+## 🎨 Demo Giao Diện
+
+![CYBERGUARD SMB Dashboard](./public/UI.jpg)
+
+*Giao diện Dashboard với thống kê real-time và phân tích chi tiết*
+
+---
+
+## 🏗️ Kiến Trúc Hệ Thống
+
+```
+┌─────────────────┐         ┌──────────────────┐         ┌─────────────────┐
+│   React Frontend │ ◄─────► │  Flask Backend   │ ◄─────► │  Gmail API      │
+│   (Port 3000)    │         │   (Port 5000)    │         │  VirusTotal API │
+│                  │         │                  │         │  Gemini AI      │
+└─────────────────┘         └──────────────────┘         └─────────────────┘
+```
+
+### Tech Stack
+
+**Frontend:**
+- React 19
+- Tailwind CSS
+- Recharts (Data visualization)
+- Lucide React (Icons)
+
+**Backend:**
+- Python 3.8+
+- Flask (REST API)
+- Gmail API (Email integration)
+- VirusTotal API (Threat detection)
+- Google Gemini API (AI analysis)
+
+---
+
+## 🚀 Bắt Đầu Nhanh
+
+### Yêu Cầu Hệ Thống
+
 - **Node.js**: >= 16.x
-- **npm**: >= 8.x hoặc **yarn**: >= 1.22.x
-- **Browser**: Chrome, Firefox, Safari, Edge (phiên bản mới nhất)
-
-### Backend (Python Flask)
 - **Python**: >= 3.8
-- **pip**: >= 21.0
-- **Virtual Environment**: venv (tự động tạo khi setup)
-
-### API Keys Cần Thiết
-- **VirusTotal API Key**: [Lấy tại đây](https://www.virustotal.com/gui/join-us) (Free tier: 500 requests/day)
-- **Google Gemini API Key** (khuyến nghị): [Lấy tại đây](https://makersuite.google.com/app/apikey) (Free tier)
-- **Groq API Key** (tùy chọn): [Lấy tại đây](https://console.groq.com/) (Free, rất nhanh)
-- **Hugging Face API Key** (tùy chọn): [Lấy tại đây](https://huggingface.co/settings/tokens) (Free)
-- **Gmail API Credentials**: [Hướng dẫn setup](./backend/GMAIL_SETUP_GUIDE.md)
-
----
-
-## 🚀 Cài Đặt
+- **npm** hoặc **yarn**
+- **API Keys** (xem bên dưới)
 
 ### Bước 1: Clone Repository
 
@@ -87,17 +102,17 @@ git clone https://github.com/HanQL12/CYBERGUARD-SMB.git
 cd CYBERGUARD-SMB/phishing-dashboard
 ```
 
-### Bước 2: Cài Đặt Frontend Dependencies
+### Bước 2: Cài Đặt Frontend
 
 ```bash
-# Cài đặt Node.js packages
+# Cài đặt dependencies
 npm install
 
 # Hoặc sử dụng yarn
 yarn install
 ```
 
-### Bước 3: Cài Đặt Backend Dependencies
+### Bước 3: Cài Đặt Backend
 
 **Windows PowerShell:**
 ```powershell
@@ -135,21 +150,21 @@ source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### Bước 4: Cấu Hình Environment Variables
+### Bước 4: Cấu Hình API Keys
 
-**Frontend** - Tạo file `.env` trong thư mục `phishing-dashboard/`:
+Tạo file `backend/.env`:
+
 ```env
-REACT_APP_API_BASE_URL=http://localhost:5000
-```
+# VirusTotal API (Bắt buộc - lấy tại https://www.virustotal.com/gui/join-us)
+# Khuyến nghị: Sử dụng 2 keys để tăng tốc độ quét song song
+VIRUSTOTAL_API_KEY_1=your_virustotal_api_key_1
+VIRUSTOTAL_API_KEY_2=your_virustotal_api_key_2
 
-**Backend** - Tạo file `.env` trong thư mục `phishing-dashboard/backend/`:
-```env
-# VirusTotal API (Bắt buộc)
-VIRUSTOTAL_API_KEY=your_virustotal_api_key_here
-
-# Chatbot API cho CEO Fraud Detection (Chọn 1 trong 3)
-# Khuyến nghị: GEMINI_API_KEY
+# AI API cho CEO Fraud Detection (Chọn ít nhất 1)
+# Khuyến nghị: GEMINI_API_KEY (chính xác nhất cho tiếng Việt)
 GEMINI_API_KEY=your_gemini_api_key_here
+
+# Tùy chọn (fallback)
 GROQ_API_KEY=your_groq_api_key_here
 HUGGINGFACE_API_KEY=your_huggingface_api_key_here
 
@@ -161,48 +176,29 @@ PORT=5000
 
 **Lưu ý**: File `.env` đã được thêm vào `.gitignore` và sẽ không được commit lên Git.
 
-### Bước 5: Cấu Hình Gmail API (Tùy chọn - để quét email tự động)
+### Bước 5: Cấu Hình Gmail (Tùy chọn - để quét email tự động)
 
-Xem hướng dẫn chi tiết tại: [backend/GMAIL_SETUP_GUIDE.md](./backend/GMAIL_SETUP_GUIDE.md)
-
-1. Tạo Google Cloud Project
+1. Tạo Google Cloud Project tại [Google Cloud Console](https://console.cloud.google.com/)
 2. Enable Gmail API
 3. Tạo OAuth 2.0 Client ID (Desktop app)
-4. Download `credentials.json` và đặt vào `backend/` folder
-5. Chạy `gmail_scanner.py` để quét email tự động
+4. Download `credentials.json` và đặt vào thư mục `backend/`
+5. Chạy `python gmail_scanner.py` để authenticate lần đầu
 
----
+### Bước 6: Chạy Dự Án
 
-## 🎯 Chạy Dự Án
-
-### Chạy Backend Server (Terminal 1)
-
+**Terminal 1 - Backend:**
 ```bash
 cd backend
+venv\Scripts\activate  # Windows
+source venv/bin/activate  # Linux/Mac
 
-# Activate virtual environment
-# Windows:
-venv\Scripts\activate
-# Linux/Mac:
-source venv/bin/activate
-
-# Chạy Flask server
 python app.py
 ```
 
 Backend sẽ chạy tại: **http://localhost:5000**
 
-Bạn sẽ thấy log:
-```
-Starting Email Security Analyzer API on port 5000
-Debug mode: True
- * Running on http://0.0.0.0:5000
-```
-
-### Chạy Frontend (Terminal 2)
-
+**Terminal 2 - Frontend:**
 ```bash
-# Từ thư mục gốc phishing-dashboard
 npm start
 ```
 
@@ -210,205 +206,157 @@ Frontend sẽ chạy tại: **http://localhost:3000**
 
 Trình duyệt sẽ tự động mở. Nếu không, truy cập thủ công: `http://localhost:3000`
 
-### Kiểm Tra Kết Nối
-
-1. Mở browser console (F12)
-2. Kiểm tra không có lỗi CORS
-3. Kiểm tra tab **Tổng Quan** có hiển thị dữ liệu từ backend
-
 ---
 
-## 📁 Cấu Trúc Project
+## 📡 API Endpoints
 
-```
-phishing-dashboard/
-├── backend/                    # Python Flask Backend
-│   ├── app.py                  # Main Flask application
-│   ├── gmail_helper.py        # Gmail API helper
-│   ├── gmail_scanner.py       # Auto email scanner
-│   ├── requirements.txt        # Python dependencies
-│   ├── setup.sh/.bat/.ps1     # Setup scripts
-│   ├── .env                    # Environment variables (không commit)
-│   ├── credentials.json        # Gmail API credentials (không commit)
-│   ├── token.json              # Gmail OAuth token (không commit)
-│   ├── venv/                   # Virtual environment (không commit)
-│   └── README.md               # Backend documentation
-│
-├── src/                        # React Frontend
-│   ├── components/            # UI Components
-│   │   ├── Sidebar.jsx         # Navigation sidebar
-│   │   ├── DashboardLayout.jsx # Main layout
-│   │   ├── OverviewWidgets.jsx # Overview widgets
-│   │   ├── Widget.jsx          # Reusable widget
-│   │   ├── OverviewTab.jsx     # Overview tab
-│   │   ├── ScannerTab.jsx      # URL scanner tab
-│   │   ├── MFATab.jsx          # MFA management tab
-│   │   ├── EmailProtectionTab.jsx # Email list tab
-│   │   ├── EmailDetailModal.jsx   # Email detail modal
-│   │   ├── ReportsTab.jsx      # Reports tab
-│   │   ├── PolicyManagementTab.jsx
-│   │   ├── SettingsTab.jsx
-│   │   ├── StatCard.jsx        # Statistics card
-│   │   └── Header.jsx          # Header component
-│   ├── config/
-│   │   └── api.js              # API configuration
-│   ├── App.js                  # Main App component
-│   └── index.css               # Global styles
-│
-├── public/                     # Static files
-├── .gitignore                  # Git ignore rules
-├── package.json                # Node.js dependencies
-├── .env                        # Frontend environment (không commit)
-└── README.md                   # File này
-```
+### Backend API
 
----
-
-## 📡 API Documentation
-
-### Backend Endpoints
+| Endpoint | Method | Mô tả |
+|----------|--------|-------|
+| `/health` | GET | Health check |
+| `/dashboard-data` | GET | Lấy thống kê và danh sách email |
+| `/reports-data` | GET | Lấy dữ liệu báo cáo (daily trends, threat types) |
+| `/tasks-data` | GET | Lấy danh sách email đã phân tích |
+| `/scan-url` | POST | Quét URL độc hại |
+| `/scan-email-urgent` | POST | Quét email đơn lẻ |
+| `/scan-emails-urgent` | POST | Quét nhiều email song song |
 
 Xem chi tiết tại: [backend/README.md](./backend/README.md)
 
-#### 1. Health Check
-```http
-GET /health
+---
+
+## 🔄 Quy Trình Phân Tích Email
+
+Hệ thống phân tích email theo **thứ tự ưu tiên** với **early exit** (dừng ngay khi phát hiện threat):
+
+```
+1. File Analysis (Priority 1)
+   └─> Nếu có attachment → Hash SHA256 → VirusTotal
+       └─> Nếu malicious → PHISHING (STOP)
+
+2. URL Analysis (Priority 2)
+   └─> Extract URLs → Submit VirusTotal → Wait 15s
+       └─> Nếu malicious → PHISHING (STOP)
+
+3. CEO Fraud Detection (Priority 3)
+   └─> AI phân tích ngữ cảnh tiếng Việt (Gemini/Groq)
+       └─> Nếu confidence >= 30% → PHISHING
+
+4. All Safe → SAFE
 ```
 
-#### 2. Dashboard Data
-```http
-GET /dashboard-data
+### Đa Luồng Xử Lý
+
+- **2 API keys**: Quét song song, mỗi key xử lý 1 email → **Tăng tốc 2x**
+- **1 API key**: Quét tuần tự
+
+---
+
+## 📁 Cấu Trúc Dự Án
+
 ```
-Trả về thống kê và danh sách email đã phân tích.
-
-#### 3. Scan URL
-```http
-POST /scan-url
-Content-Type: application/json
-
-{
-  "url": "https://example.com"
-}
+phishing-dashboard/
+├── src/                          # React Frontend
+│   ├── components/              # UI Components
+│   │   ├── Sidebar.jsx          # Navigation sidebar
+│   │   ├── OverviewTab.jsx      # Dashboard tổng quan
+│   │   ├── EmailProtectionTab.jsx # Danh sách email
+│   │   ├── ScannerTab.jsx       # Quét URL thủ công
+│   │   ├── ReportsTab.jsx       # Báo cáo & biểu đồ
+│   │   └── ...
+│   ├── config/
+│   │   └── api.js               # API configuration
+│   └── App.js                    # Main App component
+│
+├── backend/                      # Python Flask Backend
+│   ├── app.py                   # Main Flask application
+│   ├── gmail_helper.py          # Gmail API integration
+│   ├── gmail_scanner.py         # Auto email scanner
+│   ├── email_analyzer.py        # Email analysis logic
+│   ├── ceo_fraud_detector.py    # AI CEO fraud detection
+│   ├── virustotal_manager.py    # VirusTotal API manager
+│   ├── constants.py             # Application constants
+│   ├── requirements.txt         # Python dependencies
+│   └── .env                      # Environment variables (không commit)
+│
+├── public/                       # Static files
+│   ├── LOGO/                    # Logo files
+│   └── UI.jpg                   # Demo screenshot
+│
+└── README.md                     # File này
 ```
 
-#### 4. Analyze Email
-```http
-POST /analyze-email
-Content-Type: application/json
+---
 
-{
-  "subject": "Email subject",
-  "body": "Email body text",
-  "html": "Email HTML content",
-  "attachments": [...],
-  "urls": ["https://example.com"]
-}
-```
+## 🎯 Use Cases
 
-#### 5. Reports Data
-```http
-GET /reports-data?days=7
-```
-Trả về dữ liệu báo cáo với daily trends và threat types.
+### 1. Doanh Nghiệp Vừa và Nhỏ
+
+- **Vấn đề**: Không có ngân sách cho giải pháp enterprise, nhưng cần bảo vệ email
+- **Giải pháp**: CYBERGUARD SMB cung cấp giải pháp giá cả phải chăng, tự động hóa hoàn toàn
+
+### 2. Phát Hiện CEO Fraud
+
+- **Vấn đề**: Email giả mạo CEO yêu cầu chuyển tiền khẩn cấp
+- **Giải pháp**: AI phân tích ngữ cảnh tiếng Việt, phát hiện các mẫu lừa đảo phổ biến
+
+### 3. Quét URL Độc Hại
+
+- **Vấn đề**: Nhân viên click vào link độc hại trong email
+- **Giải pháp**: Tự động quét tất cả URLs với VirusTotal, cảnh báo ngay lập tức
 
 ---
 
 ## 🔧 Troubleshooting
 
-### Lỗi "Cannot connect to backend"
+### Backend không chạy
 
-**Nguyên nhân**: Backend chưa chạy hoặc CORS chưa được cấu hình.
-
-**Giải pháp**:
-1. Đảm bảo backend đang chạy tại `http://localhost:5000`
-2. Kiểm tra file `.env` có `REACT_APP_API_BASE_URL=http://localhost:5000`
-3. Restart cả frontend và backend
-
-### Lỗi "Module not found" (Backend)
-
-**Nguyên nhân**: Chưa activate virtual environment hoặc chưa cài dependencies.
+**Nguyên nhân**: Chưa activate virtual environment hoặc thiếu API keys.
 
 **Giải pháp**:
 ```bash
 cd backend
 venv\Scripts\activate  # Windows
 source venv/bin/activate  # Linux/Mac
-pip install -r requirements.txt
+
+# Kiểm tra file .env có API keys chưa
+cat .env
 ```
 
-### Lỗi "403 insufficientPermissions" (Gmail API)
+### Frontend không kết nối được Backend
+
+**Nguyên nhân**: Backend chưa chạy hoặc CORS chưa được cấu hình.
+
+**Giải pháp**:
+1. Đảm bảo backend đang chạy tại `http://localhost:5000`
+2. Kiểm tra browser console (F12) có lỗi CORS không
+3. Test API: `curl http://localhost:5000/health`
+
+### Lỗi Gmail API "403 insufficientPermissions"
 
 **Nguyên nhân**: Token.json thiếu scope `gmail.modify`.
 
 **Giải pháp**:
-1. Xóa file `backend/token.json`
-2. Chạy lại `gmail_scanner.py` để re-authenticate
-3. Đảm bảo chọn đầy đủ permissions khi authorize
-
-### Lỗi "VIRUSTOTAL_API_KEY not found"
-
-**Nguyên nhân**: File `.env` chưa được tạo hoặc thiếu API key.
-
-**Giải pháp**:
-1. Tạo file `backend/.env`
-2. Thêm `VIRUSTOTAL_API_KEY=your_key_here`
-3. Restart backend server
+```bash
+cd backend
+python fix_gmail_scopes.py
+```
 
 ### Port đã được sử dụng
 
 **Giải pháp**:
 - Backend: Đổi `PORT=5001` trong `backend/.env`
-- Frontend: Sử dụng `PORT=3001 npm start` hoặc đổi trong `.env`
+- Frontend: Sử dụng `PORT=3001 npm start`
 
-### UI hiển thị mock data thay vì real data
+### UI hiển thị mock data
 
 **Nguyên nhân**: Backend chưa trả về dữ liệu hoặc API call failed.
 
 **Giải pháp**:
-1. Kiểm tra browser console (F12) có lỗi không
-2. Kiểm tra backend logs
-3. Test API trực tiếp: `curl http://localhost:5000/dashboard-data`
-4. Đảm bảo Gmail API đã được setup và có emails trong labels
-
----
-
-## 📚 Tài Liệu Tham Khảo
-
-- [Backend README](./backend/README.md) - Hướng dẫn chi tiết về backend API
-- [Gmail Setup Guide](./backend/GMAIL_SETUP_GUIDE.md) - Hướng dẫn setup Gmail API
-- [Chatbot API Guide](./backend/CHATBOT_API_GUIDE.md) - Hướng dẫn cấu hình chatbot APIs
-- [Email Filtering Guide](./backend/EMAIL_FILTERING.md) - Hướng dẫn filter emails
-
----
-
-## 🎨 Screenshots
-
-![CYBERGUARD SMB Dashboard Demo](./public/UI.jpg)
-
-### Dashboard Tổng Quan
-- Thống kê real-time về email đã quét
-- Widgets có thể đóng/mở
-- Tự động refresh mỗi 30 giây
-
-### Tab Email Protection
-- Danh sách email với filter (All/Safe/Phishing)
-- Modal phân tích chi tiết
-- Badge mối đe dọa (URL/FILE/CEO FRAUD)
-
-### Tab Reports
-- Biểu đồ xu hướng hàng ngày
-- Phân loại mối đe dọa
-- Export PDF
-
----
-
-## 🔒 Bảo Mật
-
-- ✅ API keys được lưu trong `.env` (không commit vào Git)
-- ✅ Gmail credentials (`credentials.json`, `token.json`) không commit
-- ✅ CORS được cấu hình chỉ cho phép frontend
-- ✅ Input validation và sanitization
-- ✅ Không expose sensitive data ra frontend
+1. Kiểm tra backend logs
+2. Test API: `curl http://localhost:5000/dashboard-data`
+3. Đảm bảo Gmail API đã được setup và có emails trong labels
 
 ---
 
@@ -443,25 +391,58 @@ gunicorn -w 4 -b 0.0.0.0:5000 app:app
 
 ---
 
+## 📊 Roadmap
+
+### Version 2.2 (Q2 2025)
+- [ ] Hỗ trợ Microsoft Outlook
+- [ ] Mobile app (iOS/Android)
+- [ ] Webhook notifications
+- [ ] Advanced reporting với export Excel
+
+### Version 3.0 (Q3 2025)
+- [ ] Multi-tenant support
+- [ ] White-label solution
+- [ ] API marketplace
+- [ ] Machine learning model tự train
+
+---
+
+## 🤝 Đóng Góp
+
+CYBERGUARD SMB là một dự án khởi nghiệp đang phát triển. Mọi đóng góp đều được chào đón!
+
+### Cách Đóng Góp
+
+1. Fork repository
+2. Tạo feature branch (`git checkout -b feature/AmazingFeature`)
+3. Commit changes (`git commit -m 'Add some AmazingFeature'`)
+4. Push to branch (`git push origin feature/AmazingFeature`)
+5. Mở Pull Request
+
+---
+
 ## 📝 License
 
 © 2025 CYBERGUARD SMB - All rights reserved
 
 ---
 
-## 🤝 Đóng Góp
+## 📞 Liên Hệ & Hỗ Trợ
 
-Dự án này là một giải pháp bảo mật email cho doanh nghiệp. Mọi đóng góp đều được chào đón!
+- **GitHub Issues**: [Tạo issue mới](https://github.com/HanQL12/CYBERGUARD-SMB/issues)
+- **Documentation**: Xem [backend/README.md](./backend/README.md) để biết thêm chi tiết về API
 
 ---
 
-## 📞 Hỗ Trợ
+## 🙏 Acknowledgments
 
-Nếu có vấn đề hoặc câu hỏi:
-- Xem [Troubleshooting](#-troubleshooting) section
-- Tạo issue trên [GitHub Repository](https://github.com/HanQL12/CYBERGUARD-SMB)
-- Xem các file README trong thư mục `backend/`
+- VirusTotal - Threat intelligence platform
+- Google Gemini - AI analysis
+- Gmail API - Email integration
+- React & Flask communities
 
 ---
 
 **Made with ❤️ for Vietnamese SMBs**
+
+*Bảo vệ doanh nghiệp của bạn, một email tại một thời điểm.*
