@@ -23,13 +23,26 @@ Backend API xử lý phân tích email với sequential flow: **File > URL > CEO
 
 ## ✨ Tính Năng
 
+### 🔍 Phân Tích Đa Lớp Thông Minh
+
 - ✅ **Sequential Analysis**: Phân tích tuần tự File > URL > CEO Fraud với early exit
 - ✅ **VirusTotal Integration**: Phân tích URL và file với 90+ security vendors
 - ✅ **AI CEO Fraud Detection**: Sử dụng Google Gemini, Groq, hoặc Hugging Face
+- ✅ **Multi-Key Support**: Hỗ trợ 2 API keys để quét song song, tăng tốc độ 2x
+
+### 🚀 Tự Động Hóa & Tối Ưu
+
 - ✅ **Gmail API Integration**: Tự động quét và phân loại email từ Gmail
 - ✅ **Caching**: Client-side caching để giảm Gmail API calls
+- ✅ **Connection Pooling**: Tối ưu hiệu suất với connection pooling và retry strategy
+- ✅ **Parallel Processing**: Xử lý nhiều email đồng thời với 2 API keys
+
+### 🛡️ Reliability & Security
+
 - ✅ **RESTful API**: REST API với CORS support
 - ✅ **Error Handling**: Xử lý lỗi robust với logging chi tiết
+- ✅ **Rate Limiting**: Tự động quản lý rate limit cho VirusTotal API
+- ✅ **Graceful Degradation**: Ứng dụng vẫn chạy nếu thiếu một số API keys
 
 ---
 
@@ -42,9 +55,14 @@ Backend API xử lý phân tích email với sequential flow: **File > URL > CEO
 ### API Keys Cần Thiết
 
 - **VirusTotal API Key**: [Lấy tại đây](https://www.virustotal.com/gui/join-us) (Bắt buộc)
+  - Free tier: 500 requests/day
+  - Khuyến nghị: Sử dụng 2 keys để tăng tốc độ quét song song
 - **Google Gemini API Key**: [Lấy tại đây](https://makersuite.google.com/app/apikey) (Khuyến nghị cho CEO fraud)
+  - Free tier, tốt nhất cho tiếng Việt
 - **Groq API Key**: [Lấy tại đây](https://console.groq.com/) (Tùy chọn, rất nhanh)
+  - Free, rất nhanh nhưng ít chính xác hơn Gemini
 - **Hugging Face API Key**: [Lấy tại đây](https://huggingface.co/settings/tokens) (Tùy chọn, fallback)
+  - Free, fallback option
 
 ---
 
@@ -96,15 +114,8 @@ pip install -r requirements.txt
 
 ```bash
 # Activate venv trước
-python check_apis.py
+python -c "import flask; print('Flask installed:', flask.__version__)"
 ```
-
-Script này sẽ kiểm tra:
-- ✅ Python version
-- ✅ Virtual environment
-- ✅ Dependencies đã cài đặt
-- ✅ API keys trong `.env`
-- ✅ Gmail credentials
 
 ---
 
@@ -116,9 +127,11 @@ Tạo file `.env` trong thư mục `backend/`:
 
 ```env
 # VirusTotal API (Bắt buộc)
-VIRUSTOTAL_API_KEY=your_virustotal_api_key_here
+# Khuyến nghị: Sử dụng 2 keys để tăng tốc độ quét song song
+VIRUSTOTAL_API_KEY_1=your_virustotal_api_key_1
+VIRUSTOTAL_API_KEY_2=your_virustotal_api_key_2
 
-# Chatbot API cho CEO Fraud Detection (Chọn ít nhất 1)
+# AI API cho CEO Fraud Detection (Chọn ít nhất 1)
 # Khuyến nghị: GEMINI_API_KEY (chính xác nhất cho tiếng Việt)
 GEMINI_API_KEY=your_gemini_api_key_here
 
@@ -132,14 +145,17 @@ FLASK_DEBUG=True
 PORT=5000
 ```
 
+**Lưu ý**: File `.env` đã được thêm vào `.gitignore` và sẽ không được commit lên Git.
+
 ### 2. Cấu Hình Gmail API (Tùy chọn)
 
-Xem hướng dẫn chi tiết: [GMAIL_SETUP_GUIDE.md](./GMAIL_SETUP_GUIDE.md)
+Xem hướng dẫn chi tiết: [Gmail Setup Guide](./GMAIL_SETUP_GUIDE.md) (nếu có)
 
-1. Tạo Google Cloud Project
+1. Tạo Google Cloud Project tại [Google Cloud Console](https://console.cloud.google.com/)
 2. Enable Gmail API
 3. Tạo OAuth 2.0 Client ID (Desktop app)
 4. Download `credentials.json` và đặt vào `backend/` folder
+5. Chạy `python gmail_scanner.py` để authenticate lần đầu
 
 ---
 
@@ -157,6 +173,13 @@ python app.py
 ```
 
 Server sẽ chạy tại: **http://localhost:5000**
+
+Bạn sẽ thấy log:
+```
+Starting Email Security Analyzer API on port 5000
+Debug mode: True
+ * Running on http://0.0.0.0:5000
+```
 
 ### Production Mode
 
@@ -261,44 +284,7 @@ Content-Type: application/json
 }
 ```
 
-### 4. Analyze Email (Main Endpoint)
-
-```http
-POST /analyze-email
-Content-Type: application/json
-
-{
-  "subject": "Email subject",
-  "body": "Email body text",
-  "html": "Email HTML content",
-  "attachments": [
-    {
-      "filename": "file.pdf",
-      "data": "base64_encoded_file_data",
-      "mimeType": "application/pdf"
-    }
-  ],
-  "urls": ["https://example.com"]
-}
-```
-
-**Response:**
-```json
-{
-  "is_phishing": true,
-  "threats": ["malicious_url", "ceo_fraud"],
-  "label": "Label_8387377442759074354",
-  "details": {
-    "file_analysis": {...},
-    "url_analysis": {...},
-    "ceo_fraud_analysis": {...}
-  },
-  "analysis_order": "url",
-  "risk_score": 95
-}
-```
-
-### 5. Reports Data
+### 4. Reports Data
 
 ```http
 GET /reports-data?days=7&refresh=false
@@ -335,45 +321,82 @@ GET /reports-data?days=7&refresh=false
 }
 ```
 
-### 6. Analyze File
+### 5. Tasks Data
 
 ```http
-POST /analyze-file
-Content-Type: application/json
+GET /tasks-data?limit=50
+```
 
+**Query Parameters:**
+- `limit` (optional): Số lượng email trả về - default: 50
+
+**Response:**
+```json
 {
-  "filename": "file.pdf",
-  "data": "base64_encoded_file_data",
-  "mimeType": "application/pdf"
+  "emails": [...],
+  "total": 100,
+  "limit": 50
 }
 ```
 
-### 7. Detect CEO Fraud
+### 6. Scan Email Urgent (Single)
 
 ```http
-POST /detect-ceo-fraud
+POST /scan-email-urgent
 Content-Type: application/json
 
 {
   "subject": "Email subject",
-  "body": "Email body",
-  "html": "Email HTML"
+  "body": "Email body text",
+  "html": "Email HTML content",
+  "attachments": [...],
+  "urls": ["https://example.com"]
 }
 ```
+
+### 7. Scan Emails Urgent (Parallel)
+
+```http
+POST /scan-emails-urgent
+Content-Type: application/json
+
+{
+  "emails": [
+    {
+      "subject": "Email 1",
+      "body": "Body 1",
+      "html": "",
+      "attachments": [],
+      "urls": []
+    },
+    {
+      "subject": "Email 2",
+      "body": "Body 2",
+      "html": "",
+      "attachments": [],
+      "urls": []
+    }
+  ]
+}
+```
+
+**Lưu ý**: Endpoint này sử dụng 2 API keys để quét song song, tăng tốc độ 2x.
 
 ---
 
 ## 🔄 Sequential Analysis Flow
 
-Hệ thống phân tích email theo thứ tự ưu tiên với **early exit**:
+Hệ thống phân tích email theo **thứ tự ưu tiên** với **early exit** (dừng ngay khi phát hiện threat):
 
 ### Priority 1: File Analysis
+
 1. Nếu email có attachment → Download file
 2. Tính SHA256 hash
 3. Query VirusTotal với hash
 4. Nếu `malicious > 0` → **Return PHISHING (STOP)**
 
 ### Priority 2: URL Analysis
+
 1. Extract URLs từ email (subject, body, html)
 2. Submit từng URL đến VirusTotal
 3. Wait 15 seconds (theo logic Check Mail.json)
@@ -381,6 +404,7 @@ Hệ thống phân tích email theo thứ tự ưu tiên với **early exit**:
 5. Check suspicious patterns (typo domains, etc.)
 
 ### Priority 3: CEO Fraud Detection
+
 1. Combine subject + body + html
 2. Gửi đến AI chatbot (Gemini > Groq > Hugging Face)
 3. AI phân tích ngữ cảnh tiếng Việt
@@ -388,6 +412,7 @@ Hệ thống phân tích email theo thứ tự ưu tiên với **early exit**:
 5. Fallback: Pattern-based detection (keywords)
 
 ### All Safe
+
 Nếu tất cả 3 bước đều safe → **Return SAFE**
 
 ---
@@ -426,6 +451,19 @@ Module `gmail_helper.py` cung cấp:
 - `get_emails_by_label()`: Lấy emails theo label
 - `get_email_details()`: Lấy chi tiết email
 
+### Fix Gmail Permissions
+
+Nếu gặp lỗi "403 insufficientPermissions":
+
+```bash
+python fix_gmail_scopes.py
+```
+
+Script này sẽ:
+1. Xóa `token.json` cũ
+2. Re-authenticate với đầy đủ permissions
+3. Tạo `token.json` mới với scope `gmail.modify`
+
 ---
 
 ## 🧪 Testing
@@ -441,31 +479,32 @@ curl -X POST http://localhost:5000/scan-url \
   -H "Content-Type: application/json" \
   -d '{"url": "https://example.com"}'
 
-# Analyze email
-curl -X POST http://localhost:5000/analyze-email \
-  -H "Content-Type: application/json" \
-  -d '{
-    "subject": "Khẩn cấp chuyển gấp 100tr",
-    "body": "Chuyển gấp cho anh 100tr đến stk 01234567988 tech em nhé",
-    "html": "",
-    "attachments": []
-  }'
+# Dashboard data
+curl http://localhost:5000/dashboard-data
+
+# Reports data
+curl http://localhost:5000/reports-data?days=7
 ```
 
 ### Test với Python
 
-```bash
-python test_api.py
-```
+```python
+import requests
 
-Script này sẽ test tất cả endpoints.
+# Health check
+response = requests.get('http://localhost:5000/health')
+print(response.json())
+
+# Scan URL
+response = requests.post('http://localhost:5000/scan-url', json={
+    "url": "https://example.com"
+})
+print(response.json())
+```
 
 ### Test Gmail Integration
 
 ```bash
-# Kiểm tra API keys và credentials
-python check_apis.py
-
 # Test Gmail connection
 python -c "from gmail_helper import GmailHelper; h = GmailHelper(); print('OK' if h.authenticate() else 'FAIL')"
 ```
@@ -490,7 +529,7 @@ source venv/bin/activate  # Linux/Mac
 
 **Giải pháp**:
 1. Tạo file `backend/.env`
-2. Thêm `VIRUSTOTAL_API_KEY=your_key_here`
+2. Thêm `VIRUSTOTAL_API_KEY_1=your_key_here`
 3. Restart server
 
 ### Lỗi "403 insufficientPermissions" (Gmail API)
@@ -498,6 +537,11 @@ source venv/bin/activate  # Linux/Mac
 **Nguyên nhân**: Token.json thiếu scope `gmail.modify`.
 
 **Giải pháp**:
+```bash
+python fix_gmail_scopes.py
+```
+
+Hoặc thủ công:
 1. Xóa file `token.json`
 2. Chạy lại `gmail_scanner.py` để re-authenticate
 3. Đảm bảo chọn đầy đủ permissions
@@ -506,7 +550,15 @@ source venv/bin/activate  # Linux/Mac
 
 **Giải pháp**:
 - Đổi `PORT=5001` trong `.env`
-- Hoặc kill process đang dùng port 5000
+- Hoặc kill process đang dùng port 5000:
+  ```bash
+  # Windows
+  netstat -ano | findstr :5000
+  taskkill /PID <PID> /F
+  
+  # Linux/Mac
+  lsof -ti:5000 | xargs kill
+  ```
 
 ### API trả về 404
 
@@ -522,7 +574,50 @@ source venv/bin/activate  # Linux/Mac
 **Giải pháp**:
 1. Sử dụng Gemini API (chính xác nhất cho tiếng Việt)
 2. Kiểm tra API key có hợp lệ không
-3. Xem logs để debug response từ AI
+3. Xem logs để debug response từ AI:
+   ```bash
+   tail -f app.log | grep "CEO Fraud"
+   ```
+
+### VirusTotal Rate Limit
+
+**Nguyên nhân**: Vượt quá 500 requests/day (free tier).
+
+**Giải pháp**:
+- Sử dụng 2 API keys để tăng quota
+- Hoặc nâng cấp lên paid plan
+- Kiểm tra logs: `tail -f app.log | grep "VirusTotal"`
+
+---
+
+## 📁 Cấu Trúc Code
+
+```
+backend/
+├── app.py                    # Main Flask application
+├── gmail_helper.py          # Gmail API integration
+├── gmail_scanner.py          # Auto email scanner
+├── email_analyzer.py         # Email analysis logic
+├── ceo_fraud_detector.py     # AI CEO fraud detection
+├── virustotal_manager.py      # VirusTotal API key manager
+├── constants.py              # Application constants
+├── requirements.txt          # Python dependencies
+├── setup.sh/.bat/.ps1        # Setup scripts
+├── .env                      # Environment variables (không commit)
+├── credentials.json          # Gmail API credentials (không commit)
+├── token.json                # Gmail OAuth token (không commit)
+└── venv/                     # Virtual environment (không commit)
+```
+
+### Module Responsibilities
+
+- **`app.py`**: Main Flask app, API endpoints, request handling
+- **`gmail_helper.py`**: Gmail API wrapper, caching, data fetching
+- **`gmail_scanner.py`**: Auto scanner, email processing loop
+- **`email_analyzer.py`**: Email parsing, URL extraction, analysis orchestration
+- **`ceo_fraud_detector.py`**: AI-powered CEO fraud detection
+- **`virustotal_manager.py`**: Multi-key management, rate limiting
+- **`constants.py`**: Application-wide constants
 
 ---
 
@@ -534,6 +629,7 @@ source venv/bin/activate  # Linux/Mac
 - **Hugging Face**: Free, fallback option
 - **Caching**: Dashboard data được cache 60 giây để giảm Gmail API calls
 - **Early Exit**: Nếu phát hiện threat ở bước nào, dừng ngay không check tiếp
+- **Multi-Key**: 2 API keys cho phép quét song song, tăng tốc độ 2x
 
 ---
 
@@ -544,16 +640,19 @@ source venv/bin/activate  # Linux/Mac
 - ✅ CORS chỉ cho phép frontend
 - ✅ Input validation
 - ✅ Error messages không expose sensitive info
+- ✅ Logging không chứa API keys
 
 ---
 
 ## 📚 Tài Liệu Tham Khảo
 
-- [Gmail Setup Guide](./GMAIL_SETUP_GUIDE.md) - Hướng dẫn setup Gmail API
-- [Chatbot API Guide](./CHATBOT_API_GUIDE.md) - Hướng dẫn cấu hình chatbot APIs
-- [Email Filtering Guide](./EMAIL_FILTERING.md) - Hướng dẫn filter emails
 - [Main README](../README.md) - Frontend documentation
+- [VirusTotal API Docs](https://developers.virustotal.com/reference)
+- [Gmail API Docs](https://developers.google.com/gmail/api)
+- [Google Gemini API Docs](https://ai.google.dev/docs)
 
 ---
 
 **Made with ❤️ for CYBERGUARD SMB**
+
+*Backend API - The Brain of Email Security*
