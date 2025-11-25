@@ -1,6 +1,10 @@
 # 🔧 CYBERGUARD SMB – Backend Prototype  
 **Mô phỏng lõi phân tích email cho bản demo “Giải pháp Bảo mật Email trong kỷ nguyên số”**
 
+[![Version](https://img.shields.io/badge/version-2.1-blue.svg)](#)
+[![Prototype](https://img.shields.io/badge/mode-backend__prototype-orange)](#)
+[![Status](https://img.shields.io/badge/ready-for_demo-success)](#)
+
 Backend này cung cấp **mock services** để dashboard phía trước trình diễn được các luồng phân tích: thu thập email, phân tầng rủi ro, phát hiện CEO fraud và dựng báo cáo xu hướng.
 
 ---

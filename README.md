@@ -2,6 +2,10 @@
 **Giải pháp Bảo mật Email cho doanh nghiệp trong kỷ nguyên số**  
 _Prototype dành cho cuộc thi Ý tưởng Sáng tạo 2025_
 
+[![Version](https://img.shields.io/badge/version-2.1-blue.svg)](#) 
+[![Status](https://img.shields.io/badge/state-prototype-success)](#) 
+[![Pitch Ready](https://img.shields.io/badge/demo-ready-green)](#)
+
 ![CYBERGUARD SMB Dashboard](./public/UI.jpg)
 
 ---
