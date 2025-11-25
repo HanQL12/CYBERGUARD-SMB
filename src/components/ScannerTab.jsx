@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Search, AlertTriangle, CheckCircle, Copy, ExternalLink, Shield, History } from 'lucide-react';
 import StatCard from './StatCard';
 
@@ -12,36 +12,58 @@ const ScannerTab = ({
 }) => {
   const [scanHistory, setScanHistory] = useState([]);
   const [copied, setCopied] = useState(false);
+  const [lastScannedUrl, setLastScannedUrl] = useState(null);
 
-  const handleScan = async () => {
+  const handleScan = useCallback(async () => {
+    setLastScannedUrl(scanUrl.trim());
     await onScan();
-    // History will be updated when scanResult changes
-  };
+  }, [onScan, scanUrl]);
 
-  // Update history when scanResult changes
+  // Update history only when scan is complete and has valid result
   useEffect(() => {
-    if (scanResult && scanUrl) {
-      setScanHistory(prev => {
-        // Check if this URL already exists in history
-        const exists = prev.some(item => item.url === scanUrl);
-        if (exists) return prev;
-        
-        return [{
-          url: scanUrl,
-          result: scanResult,
-          timestamp: new Date().toLocaleString('vi-VN')
-        }, ...prev].slice(0, 10); // Keep last 10 scans
-      });
+    // Only save to history if:
+    // 1. Not currently scanning
+    // 2. Has scan result
+    // 3. Result URL matches the last scanned URL (to avoid saving when just typing)
+    // 4. Result is valid (has riskLevel and not just an error state)
+    if (!scanning && scanResult && lastScannedUrl) {
+      const resultUrl = scanResult.url || lastScannedUrl;
+      
+      // Check if URL matches and result is valid
+      if (resultUrl === lastScannedUrl && scanResult.riskLevel && scanResult.riskLevel !== 'UNKNOWN') {
+        setScanHistory(prev => {
+          // Check if this URL already exists in history (update existing entry)
+          const existingIndex = prev.findIndex(item => item.url === resultUrl);
+          
+          const newEntry = {
+            url: resultUrl,
+            result: scanResult,
+            timestamp: scanResult.timestamp 
+              ? new Date(scanResult.timestamp).toLocaleString('vi-VN')
+              : new Date().toLocaleString('vi-VN')
+          };
+          
+          if (existingIndex >= 0) {
+            // Update existing entry
+            const updated = [...prev];
+            updated[existingIndex] = newEntry;
+            return updated;
+          } else {
+            // Add new entry
+            return [newEntry, ...prev].slice(0, 10); // Keep last 10 scans
+          }
+        });
+      }
     }
-  }, [scanResult, scanUrl]);
+  }, [scanning, scanResult, lastScannedUrl]);
 
-  const copyToClipboard = (text) => {
+  const copyToClipboard = useCallback((text) => {
     navigator.clipboard.writeText(text);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
-  };
+  }, []);
 
-  const getThreatTypeLabel = (type) => {
+  const getThreatTypeLabel = useCallback((type) => {
     const labels = {
       'Phishing': 'Lừa Đảo',
       'Malware': 'Phần Mềm Độc Hại',
@@ -49,7 +71,9 @@ const ScannerTab = ({
       'Safe': 'An Toàn'
     };
     return labels[type] || type;
-  };
+  }, []);
+  
+  const recentHistory = useMemo(() => scanHistory.slice(0, 5), [scanHistory]);
 
   return (
     <div className="space-y-6">
@@ -105,10 +129,13 @@ const ScannerTab = ({
           <div className="bg-blue-50 border border-blue-200 mt-6 p-5 rounded">
             <div className="flex items-center gap-4">
               <div className="animate-spin rounded-full h-7 w-7 border-b-2 border-blue-600"></div>
-              <div>
+              <div className="flex-1">
                 <p className="text-blue-700 font-mono font-bold text-base">ĐANG XỬ LÝ VỚI NEURAL NETWORK...</p>
                 <p className="text-gray-600 text-sm font-mono mt-2">
                   Phân tích cấu trúc URL, kiểm tra chữ ký malware, so sánh với cơ sở dữ liệu mối đe dọa
+                </p>
+                <p className="text-gray-500 text-xs font-mono mt-1">
+                  Quá trình này có thể mất khoảng 15-20 giây
                 </p>
               </div>
             </div>
@@ -160,9 +187,13 @@ const ScannerTab = ({
                   <div>
                     <p className="text-gray-600 text-sm font-mono font-semibold mb-2">MỨC ĐỘ RỦI RO</p>
                     <p className={`text-xl font-mono font-bold ${
-                      scanResult.riskLevel === 'HIGH' ? 'text-red-600' : 'text-green-600'
+                      scanResult.riskLevel === 'HIGH' ? 'text-red-600' : 
+                      scanResult.riskLevel === 'MEDIUM' ? 'text-yellow-600' : 
+                      'text-green-600'
                     }`}>
-                      {scanResult.riskLevel === 'HIGH' ? 'CAO' : scanResult.riskLevel === 'MEDIUM' ? 'TRUNG BÌNH' : 'THẤP'}
+                      {scanResult.riskLevel === 'HIGH' ? 'CAO' : 
+                       scanResult.riskLevel === 'MEDIUM' ? 'TRUNG BÌNH' : 
+                       'THẤP'}
                     </p>
                   </div>
                   <div>
@@ -172,29 +203,46 @@ const ScannerTab = ({
                     </p>
                   </div>
                   <div>
-                    <p className="text-gray-600 text-sm font-mono font-semibold mb-2">ĐỘ TIN CẬY ML</p>
-                    <p className="text-gray-800 text-xl font-mono font-bold">{scanResult.confidence}%</p>
+                    <p className="text-gray-600 text-sm font-mono font-semibold mb-2">ĐỘ TIN CẬY</p>
+                    <p className="text-gray-800 text-xl font-mono font-bold">{scanResult.confidence || 0}%</p>
+                    <p className="text-gray-500 text-xs font-mono mt-1">Dựa trên {scanResult.vendors || '0/90'} công cụ phát hiện</p>
                   </div>
                   <div>
-                    <p className="text-gray-600 text-sm font-mono font-semibold mb-2">NGUỒN THÔNG TIN MỐI ĐE DỌA</p>
-                    <p className="text-gray-800 text-xl font-mono font-bold">{scanResult.vendors}</p>
+                    <p className="text-gray-600 text-sm font-mono font-semibold mb-2">NGUỒN PHÂN TÍCH</p>
+                    <p className="text-gray-800 text-xl font-mono font-bold">ML Engine</p>
+                    <p className="text-gray-500 text-xs font-mono mt-1">Deep Learning Model</p>
                   </div>
                 </div>
 
                 <div className="mb-5">
                   <p className="text-gray-600 text-sm font-mono font-semibold mb-3">DANH MỤC PHÁT HIỆN</p>
                   <div className="flex flex-wrap gap-2">
-                    {scanResult.categories.map((cat, idx) => (
+                    {scanResult.categories && scanResult.categories.map((cat, idx) => (
                       <span 
                         key={idx} 
                         className={`px-3 py-1.5 rounded-md text-sm font-mono font-bold ${
-                          cat === 'safe' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                          cat === 'safe' ? 'bg-green-100 text-green-700' : 
+                          cat === 'suspicious' ? 'bg-yellow-100 text-yellow-700' :
+                          'bg-red-100 text-red-700'
                         }`}
                       >
                         [{cat.toUpperCase()}]
                       </span>
                     ))}
                   </div>
+                  {scanResult.malicious !== undefined && (
+                    <div className="mt-3 grid grid-cols-3 gap-3 text-sm font-mono">
+                      <div className="bg-red-50 p-2 rounded">
+                        <p className="text-red-700 font-bold">Độc hại: {scanResult.malicious || 0}</p>
+                      </div>
+                      <div className="bg-yellow-50 p-2 rounded">
+                        <p className="text-yellow-700 font-bold">Đáng ngờ: {scanResult.suspicious || 0}</p>
+                      </div>
+                      <div className="bg-green-50 p-2 rounded">
+                        <p className="text-green-700 font-bold">An toàn: {scanResult.harmless || 0}</p>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {scanResult.riskLevel === 'HIGH' && (
@@ -209,9 +257,16 @@ const ScannerTab = ({
                   </div>
                 )}
 
-                <p className="text-gray-500 text-sm font-mono mt-5">
-                  Được phân tích bởi SecureML Engine v2.1 lúc {scanResult.timestamp}
-                </p>
+                <div className="mt-5 pt-4 border-t border-gray-200">
+                  <p className="text-gray-500 text-sm font-mono">
+                    Được phân tích bởi SecureML Engine v2.1 lúc {scanResult.timestamp ? new Date(scanResult.timestamp).toLocaleString('vi-VN') : new Date().toLocaleString('vi-VN')}
+                  </p>
+                  {scanResult.error && (
+                    <p className="text-red-500 text-xs font-mono mt-2">
+                      ⚠️ Lưu ý: {scanResult.error}
+                    </p>
+                  )}
+                </div>
               </div>
             </div>
           </div>
@@ -221,37 +276,64 @@ const ScannerTab = ({
       {/* Scan History */}
       {scanHistory.length > 0 && (
         <div className="bg-white border border-gray-200 p-6 rounded shadow-sm">
-          <div className="flex items-center gap-3 mb-5">
-            <History className="w-6 h-6 text-gray-700" />
-            <h3 className="text-gray-800 text-xl font-mono font-bold">LỊCH SỬ QUÉT</h3>
+          <div className="flex items-center justify-between mb-5">
+            <div className="flex items-center gap-3">
+              <History className="w-6 h-6 text-gray-700" />
+              <h3 className="text-gray-800 text-xl font-mono font-bold">LỊCH SỬ QUÉT</h3>
+              <span className="text-gray-500 text-sm font-mono">({scanHistory.length} mục)</span>
+            </div>
+            {scanHistory.length > 0 && (
+              <button
+                onClick={() => setScanHistory([])}
+                className="text-sm font-mono text-red-600 hover:text-red-700 px-3 py-1 rounded hover:bg-red-50 transition"
+              >
+                Xóa lịch sử
+              </button>
+            )}
           </div>
           <div className="space-y-3">
-            {scanHistory.slice(0, 5).map((item, idx) => (
-              <div
-                key={idx}
-                className="bg-gray-50 border border-gray-200 p-4 rounded flex items-center justify-between hover:bg-gray-100 transition cursor-pointer"
-                onClick={() => setScanUrl(item.url)}
-              >
-                <div className="flex items-center gap-3">
-                  {item.result.riskLevel === 'HIGH' ? (
-                    <AlertTriangle className="w-5 h-5 text-red-600" />
-                  ) : (
-                    <CheckCircle className="w-5 h-5 text-green-600" />
-                  )}
-                  <div>
-                    <p className="text-gray-800 text-base font-mono font-medium">{item.url}</p>
-                    <p className="text-gray-500 text-sm font-mono">{item.timestamp}</p>
-                  </div>
-                </div>
-                <span
-                  className={`px-3 py-1.5 rounded-md text-sm font-mono font-bold ${
-                    item.result.riskLevel === 'HIGH' ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'
-                  }`}
+            {recentHistory.map((item, idx) => {
+              const riskLevel = item.result?.riskLevel || 'LOW';
+              const isHigh = riskLevel === 'HIGH';
+              const isMedium = riskLevel === 'MEDIUM';
+              
+              return (
+                <div
+                  key={`${item.url}-${item.timestamp}-${idx}`}
+                  className="bg-gray-50 border border-gray-200 p-4 rounded flex items-center justify-between hover:bg-gray-100 transition cursor-pointer"
+                  onClick={() => {
+                    setScanUrl(item.url);
+                    // Scroll to top to see the input
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                  }}
                 >
-                  {item.result.riskLevel === 'HIGH' ? 'CAO' : 'THẤP'}
-                </span>
-              </div>
-            ))}
+                  <div className="flex items-center gap-3 flex-1 min-w-0">
+                    {isHigh ? (
+                      <AlertTriangle className="w-5 h-5 text-red-600 flex-shrink-0" />
+                    ) : isMedium ? (
+                      <AlertTriangle className="w-5 h-5 text-yellow-600 flex-shrink-0" />
+                    ) : (
+                      <CheckCircle className="w-5 h-5 text-green-600 flex-shrink-0" />
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-gray-800 text-base font-mono font-medium truncate" title={item.url}>
+                        {item.url}
+                      </p>
+                      <p className="text-gray-500 text-sm font-mono">{item.timestamp}</p>
+                    </div>
+                  </div>
+                  <span
+                    className={`px-3 py-1.5 rounded-md text-sm font-mono font-bold flex-shrink-0 ml-3 ${
+                      isHigh ? 'bg-red-100 text-red-700' : 
+                      isMedium ? 'bg-yellow-100 text-yellow-700' : 
+                      'bg-green-100 text-green-700'
+                    }`}
+                  >
+                    {isHigh ? 'CAO' : isMedium ? 'TRUNG BÌNH' : 'THẤP'}
+                  </span>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}

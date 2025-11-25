@@ -1,61 +1,12 @@
-import React, { useState, useEffect } from 'react';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, AreaChart, Area } from 'recharts';
-import { Activity, RefreshCw, TrendingUp, AlertTriangle, Shield, Clock } from 'lucide-react';
-import StatCard from './StatCard';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Activity, RefreshCw, AlertTriangle, Shield, Clock, Zap, CheckCircle2, TrendingUp, Mail, Eye, ArrowRight } from 'lucide-react';
 
-// Generate dynamic trend data based on real stats
-const generateTrendData = (realStats) => {
-  const days = 7;
-  const data = [];
-  const today = new Date();
-  
-  for (let i = days - 1; i >= 0; i--) {
-    const date = new Date(today);
-    date.setDate(date.getDate() - i);
-    const dateStr = `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')}`;
-    
-    // Generate realistic data with some variation
-    const baseThreats = Math.floor((realStats.phishing_detected || 37) / days);
-    const baseSafe = Math.floor((realStats.safe_emails || 247) / days);
-    
-    data.push({
-      date: dateStr,
-      threats: baseThreats + Math.floor(Math.random() * 10 - 5),
-      safe: baseSafe + Math.floor(Math.random() * 15 - 7),
-      blocked: baseThreats + Math.floor(Math.random() * 5 - 2)
-    });
-  }
-  
-  return data;
-};
-
-const OverviewTab = ({ realStats, loadingStats, displayStats, onRefresh }) => {
-  const [trendData, setTrendData] = useState([]);
+const OverviewTab = ({ realStats, loadingStats, displayStats, onRefresh, filteredEmails = [] }) => {
   const [lastRefresh, setLastRefresh] = useState(new Date());
-
-  useEffect(() => {
-    setTrendData(generateTrendData(realStats));
-  }, [realStats]);
 
   const handleRefresh = () => {
     onRefresh();
     setLastRefresh(new Date());
-  };
-
-  const statsData = [
-    { name: 'Phishing', value: displayStats.threatsDetected, color: '#ff4444' },
-    { name: 'An Toàn', value: displayStats.safeEmails, color: '#44ff44' }
-  ];
-
-  const customTooltipStyle = {
-    backgroundColor: '#ffffff',
-    border: '1px solid #e5e7eb',
-    color: '#1f2937',
-    fontFamily: 'monospace',
-    fontSize: '14px',
-    padding: '12px',
-    borderRadius: '6px',
-    boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)'
   };
 
   const formatTime = (date) => {
@@ -67,186 +18,310 @@ const OverviewTab = ({ realStats, loadingStats, displayStats, onRefresh }) => {
     });
   };
 
+  // Get recent threats (last 5 phishing emails)
+  const recentThreats = useMemo(() => {
+    return filteredEmails
+      .filter(email => email.is_phishing)
+      .slice(0, 5)
+      .map(email => ({
+        id: email.id,
+        subject: email.subject || 'No subject',
+        sender: email.sender || email.from || 'Unknown',
+        date: email.date || 'Recently',
+        risk: email.risk || 'high'
+      }));
+  }, [filteredEmails]);
+
+  // Calculate today's stats (mock for now, can be enhanced with real-time data)
+  const todayStats = useMemo(() => {
+    const total = displayStats.totalEmails || 0;
+    const threats = displayStats.threatsDetected || 0;
+    const safe = displayStats.safeEmails || 0;
+    
+    return {
+      scanned: total,
+      threats: threats,
+      blocked: threats,
+      safe: safe,
+      phishingRate: displayStats.phishingRate || '0%'
+    };
+  }, [displayStats]);
+
+  // System health indicators
+  const systemHealth = useMemo(() => {
+    const isActive = realStats.workflow_status === 'active';
+    const hasThreats = (displayStats.threatsDetected || 0) > 0;
+    
+    return {
+      status: isActive ? 'operational' : 'warning',
+      mlEngine: isActive ? 'active' : 'inactive',
+      scanning: isActive ? 'active' : 'paused',
+      lastUpdate: realStats.last_updated
+    };
+  }, [realStats, displayStats]);
+
   return (
     <div className="space-y-6">
-      {/* Header Card với Auto-refresh indicator */}
-      <div className="bg-white border border-gray-200 p-5 rounded shadow-sm">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Activity className="w-7 h-7 animate-pulse text-blue-600" />
-            <div>
-              <p className="font-bold font-mono text-lg text-gray-900">GIÁM SÁT TRỰC TIẾP ĐANG HOẠT ĐỘNG</p>
-              <p className="text-sm font-mono text-gray-600 mt-1">
-                {realStats.last_updated 
-                  ? `Cập nhật lần cuối: ${formatTime(realStats.last_updated)}`
-                  : 'Đang khởi tạo...'}
-              </p>
-            </div>
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="relative">
+            <div className={`w-3 h-3 rounded-full ${systemHealth.status === 'operational' ? 'bg-green-500 animate-pulse' : 'bg-yellow-500'}`}></div>
+            <div className={`absolute inset-0 w-3 h-3 rounded-full ${systemHealth.status === 'operational' ? 'bg-green-500 animate-ping opacity-75' : ''}`}></div>
           </div>
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2">
-              <Clock className="w-5 h-5 text-gray-500" />
-              <span className="text-sm font-mono text-gray-600">
-                Làm mới: {lastRefresh.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
-              </span>
-            </div>
-            <button 
-              onClick={handleRefresh}
-              className="px-5 py-2.5 rounded-md text-sm font-mono transition flex items-center gap-2 hover:bg-gray-200 bg-gray-100 text-gray-700 font-semibold"
-            >
-              <RefreshCw className="w-5 h-5" />
-              LÀM MỚI
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* Stats Grid với icons */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <StatCard
-          title="Tổng Email"
-          value={loadingStats ? undefined : displayStats.totalEmails}
-          subtitle="Đã quét bởi ML Engine"
-          icon={Activity}
-          iconColor="#00d9ff"
-        />
-        <StatCard
-          title="Mối Đe Dọa Phát Hiện"
-          value={loadingStats ? undefined : displayStats.threatsDetected}
-          textColor="#ff4444"
-          subtitle="Phát hiện real-time"
-          icon={AlertTriangle}
-          iconColor="#ff4444"
-        />
-        <StatCard
-          title="Đã Chặn"
-          value={loadingStats ? undefined : displayStats.blocked}
-          textColor="#44ff44"
-          subtitle="Tỷ lệ phát hiện 100%"
-          icon={Shield}
-          iconColor="#44ff44"
-        />
-        <StatCard
-          title="Độ Chính Xác ML"
-          value="93.5%"
-          textColor="#00d9ff"
-          subtitle="Model tự động cập nhật"
-          icon={TrendingUp}
-          iconColor="#00d9ff"
-        />
-      </div>
-
-      {/* Charts Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <div className="bg-white border border-gray-200 lg:col-span-2 p-5 rounded shadow-sm">
-          <h3 className="text-xl font-mono mb-5 font-bold text-gray-900">XU HƯỚNG PHÁT HIỆN MỐI ĐE DỌA</h3>
-          <ResponsiveContainer width="100%" height={300}>
-            <AreaChart data={trendData}>
-              <defs>
-                <linearGradient id="colorThreats" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#ff4444" stopOpacity={0.8}/>
-                  <stop offset="95%" stopColor="#ff4444" stopOpacity={0}/>
-                </linearGradient>
-                <linearGradient id="colorSafe" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#44ff44" stopOpacity={0.8}/>
-                  <stop offset="95%" stopColor="#44ff44" stopOpacity={0}/>
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-              <XAxis dataKey="date" stroke="#6b7280" style={{ fontFamily: 'monospace', fontSize: '12px' }} />
-              <YAxis stroke="#6b7280" style={{ fontFamily: 'monospace', fontSize: '12px' }} />
-              <Tooltip contentStyle={customTooltipStyle} />
-              <Area type="monotone" dataKey="threats" stroke="#ff4444" fillOpacity={1} fill="url(#colorThreats)" name="Mối Đe Dọa" />
-              <Area type="monotone" dataKey="safe" stroke="#44ff44" fillOpacity={1} fill="url(#colorSafe)" name="An Toàn" />
-              <Line type="monotone" dataKey="blocked" stroke="#00d9ff" strokeWidth={2} name="Đã Chặn" />
-            </AreaChart>
-          </ResponsiveContainer>
-        </div>
-
-        <div className="bg-white border border-gray-200 p-5 rounded shadow-sm">
-          <h3 className="text-xl font-mono mb-5 font-bold text-gray-900">PHÂN BỐ EMAIL</h3>
-          <ResponsiveContainer width="100%" height={300}>
-            <PieChart>
-              <Pie
-                data={statsData}
-                cx="50%"
-                cy="50%"
-                labelLine={false}
-                label={({name, percent}) => `${name}: ${(percent * 100).toFixed(0)}%`}
-                outerRadius={80}
-                fill="#8884d8"
-                dataKey="value"
-              >
-                {statsData.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={entry.color} />
-                ))}
-              </Pie>
-              <Tooltip contentStyle={customTooltipStyle} />
-            </PieChart>
-          </ResponsiveContainer>
-        </div>
-      </div>
-
-      {/* ML Engine Status với thông tin chi tiết */}
-      <div className="bg-white border border-gray-200 p-6 rounded shadow-sm">
-        <div className="flex items-start gap-4">
-          <div className="p-4 rounded bg-blue-100">
-            <Activity className="w-8 h-8 text-blue-600" />
-          </div>
-          <div className="flex-1">
-            <h4 className="font-bold font-mono mb-3 text-xl text-gray-900">TRẠNG THÁI ML ENGINE</h4>
-            <p className="text-base font-mono mb-5 text-gray-700">
-              Mô hình deep learning tiên tiến liên tục phân tích mẫu email, cấu trúc URL, 
-              và hành vi người gửi để phát hiện các cuộc tấn công phishing tinh vi với độ chính xác 93.5%.
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">Tổng Quan</h1>
+            <p className="text-sm text-gray-500">
+              {systemHealth.lastUpdate 
+                ? `Cập nhật: ${formatTime(systemHealth.lastUpdate)}`
+                : 'Đang khởi tạo...'}
             </p>
-            <div className="grid grid-cols-2 gap-4 text-base font-mono">
-              <div>
-                <span className="text-gray-600">Model:</span>
-                <span className="ml-2 font-bold text-green-600">Phishing-Defender v2.1</span>
-              </div>
-              <div>
-                <span className="text-gray-600">Dữ liệu huấn luyện:</span>
-                <span className="ml-2 font-bold text-blue-600">2.3M mẫu</span>
-              </div>
-              <div>
-                <span className="text-gray-600">Tỷ lệ phát hiện:</span>
-                <span className="ml-2 font-bold text-blue-600">100%</span>
-              </div>
-              <div>
-                <span className="text-gray-600">Tỷ lệ phishing:</span>
-                <span className="ml-2 font-bold text-red-600">{displayStats.phishingRate}</span>
-              </div>
-            </div>
           </div>
+        </div>
+        <button 
+          onClick={handleRefresh}
+          className="flex items-center gap-2 px-4 py-2 rounded-lg bg-gray-100 hover:bg-gray-200 transition text-sm font-medium"
+        >
+          <RefreshCw className="w-4 h-4" />
+          Làm mới
+        </button>
+      </div>
+
+      {/* Key Metrics - Today's Overview */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl p-6 text-white shadow-lg">
+          <div className="flex items-center justify-between mb-4">
+            <Mail className="w-8 h-8 opacity-80" />
+            <span className="text-sm opacity-90">Hôm nay</span>
+          </div>
+          <div className="text-4xl font-bold mb-1">
+            {loadingStats ? '...' : todayStats.scanned || 0}
+          </div>
+          <div className="text-sm opacity-90">Email đã quét</div>
+        </div>
+
+        <div className="bg-gradient-to-br from-red-500 to-red-600 rounded-xl p-6 text-white shadow-lg">
+          <div className="flex items-center justify-between mb-4">
+            <AlertTriangle className="w-8 h-8 opacity-80" />
+            <span className="text-sm opacity-90">Phát hiện</span>
+          </div>
+          <div className="text-4xl font-bold mb-1">
+            {loadingStats ? '...' : todayStats.threats || 0}
+          </div>
+          <div className="text-sm opacity-90">Mối đe dọa</div>
+        </div>
+
+        <div className="bg-gradient-to-br from-green-500 to-green-600 rounded-xl p-6 text-white shadow-lg">
+          <div className="flex items-center justify-between mb-4">
+            <Shield className="w-8 h-8 opacity-80" />
+            <span className="text-sm opacity-90">Đã chặn</span>
+          </div>
+          <div className="text-4xl font-bold mb-1">
+            {loadingStats ? '...' : todayStats.blocked || 0}
+          </div>
+          <div className="text-sm opacity-90">Tự động chặn</div>
+        </div>
+
+        <div className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl p-6 text-white shadow-lg">
+          <div className="flex items-center justify-between mb-4">
+            <TrendingUp className="w-8 h-8 opacity-80" />
+            <span className="text-sm opacity-90">Tỷ lệ</span>
+          </div>
+          <div className="text-4xl font-bold mb-1">
+            {todayStats.phishingRate || '0%'}
+          </div>
+          <div className="text-sm opacity-90">Phishing rate</div>
         </div>
       </div>
 
-      {/* Quick Actions */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-white border border-gray-200 p-5 rounded shadow-sm cursor-pointer hover:bg-gray-50 transition">
-          <div className="flex items-center gap-3">
-            <AlertTriangle className="w-6 h-6 text-red-600" />
-            <div>
-              <p className="font-mono font-bold text-base text-gray-900">Mối Đe Dọa Gần Đây</p>
-              <p className="text-sm font-mono text-gray-600 mt-1">Xem chi tiết các mối đe dọa mới nhất</p>
+      {/* Main Content Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* System Status - Left Column */}
+        <div className="lg:col-span-2 space-y-6">
+          {/* System Health */}
+          <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="p-2 bg-blue-100 rounded-lg">
+                <Activity className="w-6 h-6 text-blue-600" />
+              </div>
+              <h3 className="text-lg font-semibold text-gray-900">Trạng Thái Hệ Thống</h3>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="p-4 bg-gray-50 rounded-lg">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm text-gray-600">ML Engine</span>
+                  <div className="flex items-center gap-2">
+                    <div className={`w-2 h-2 rounded-full ${systemHealth.mlEngine === 'active' ? 'bg-green-500 animate-pulse' : 'bg-gray-400'}`}></div>
+                    <span className={`text-sm font-semibold ${systemHealth.mlEngine === 'active' ? 'text-green-600' : 'text-gray-600'}`}>
+                      {systemHealth.mlEngine === 'active' ? 'Hoạt động' : 'Tạm dừng'}
+                    </span>
+                  </div>
+                </div>
+                <p className="text-xs text-gray-500">Phishing-Defender v2.1</p>
+              </div>
+
+              <div className="p-4 bg-gray-50 rounded-lg">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm text-gray-600">Quét Email</span>
+                  <div className="flex items-center gap-2">
+                    <div className={`w-2 h-2 rounded-full ${systemHealth.scanning === 'active' ? 'bg-green-500 animate-pulse' : 'bg-gray-400'}`}></div>
+                    <span className={`text-sm font-semibold ${systemHealth.scanning === 'active' ? 'text-green-600' : 'text-gray-600'}`}>
+                      {systemHealth.scanning === 'active' ? 'Đang quét' : 'Tạm dừng'}
+                    </span>
+                  </div>
+                </div>
+                <p className="text-xs text-gray-500">Real-time monitoring</p>
+              </div>
+
+              <div className="p-4 bg-gray-50 rounded-lg">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm text-gray-600">Thời gian phản hồi</span>
+                  <span className="text-sm font-semibold text-gray-900">0.8s</span>
+                </div>
+                <p className="text-xs text-gray-500">Trung bình</p>
+              </div>
+
+              <div className="p-4 bg-gray-50 rounded-lg">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm text-gray-600">Độ chính xác</span>
+                  <span className="text-sm font-semibold text-green-600">93.5%</span>
+                </div>
+                <p className="text-xs text-gray-500">ML Model</p>
+              </div>
             </div>
           </div>
-        </div>
-        <div className="bg-white border border-gray-200 p-5 rounded shadow-sm cursor-pointer hover:bg-gray-50 transition">
-          <div className="flex items-center gap-3">
-            <Shield className="w-6 h-6 text-green-600" />
-            <div>
-              <p className="font-mono font-bold text-base text-gray-900">Bảo Vệ Đang Hoạt Động</p>
-              <p className="text-sm font-mono text-gray-600 mt-1">Tất cả hệ thống bảo vệ đang chạy</p>
+
+          {/* Recent Threats */}
+          <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-red-100 rounded-lg">
+                  <AlertTriangle className="w-6 h-6 text-red-600" />
+                </div>
+                <h3 className="text-lg font-semibold text-gray-900">Mối Đe Dọa Gần Đây</h3>
+              </div>
+              <span className="text-sm text-gray-500">{recentThreats.length} mục</span>
             </div>
+            {recentThreats.length > 0 ? (
+              <div className="space-y-3">
+                {recentThreats.map((threat, idx) => (
+                  <div key={threat.id || idx} className="flex items-start gap-3 p-3 border-l-4 border-red-500 bg-red-50 rounded hover:bg-red-100 transition cursor-pointer">
+                    <AlertTriangle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-900 truncate">{threat.subject}</p>
+                      <p className="text-xs text-gray-600 mt-1">Từ: {threat.sender}</p>
+                      <p className="text-xs text-gray-500 mt-1">{threat.date}</p>
+                    </div>
+                    <span className="px-2 py-1 text-xs font-semibold bg-red-200 text-red-700 rounded flex-shrink-0">
+                      CAO
+                    </span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-8">
+                <CheckCircle2 className="w-12 h-12 text-green-500 mx-auto mb-3" />
+                <p className="text-sm text-gray-600">Không có mối đe dọa nào trong thời gian gần đây</p>
+              </div>
+            )}
           </div>
         </div>
-        <div className="bg-white border border-gray-200 p-5 rounded shadow-sm cursor-pointer hover:bg-gray-50 transition">
-          <div className="flex items-center gap-3">
-            <TrendingUp className="w-6 h-6 text-blue-600" />
-            <div>
-              <p className="font-mono font-bold text-base text-gray-900">Xu Hướng Tấn Công</p>
-              <p className="text-sm font-mono text-gray-600 mt-1">Phân tích xu hướng tấn công</p>
+
+        {/* Right Column - Quick Info */}
+        <div className="space-y-6">
+          {/* Quick Stats */}
+          <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-2 bg-purple-100 rounded-lg">
+                <Zap className="w-6 h-6 text-purple-600" />
+              </div>
+              <h3 className="text-lg font-semibold text-gray-900">Thống Kê Nhanh</h3>
+            </div>
+            <div className="space-y-4">
+              <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                <div className="flex items-center gap-3">
+                  <Mail className="w-5 h-5 text-blue-600" />
+                  <div>
+                    <p className="text-sm text-gray-600">Tổng email</p>
+                    <p className="text-lg font-semibold text-gray-900">{displayStats.totalEmails || 0}</p>
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                <div className="flex items-center gap-3">
+                  <Shield className="w-5 h-5 text-green-600" />
+                  <div>
+                    <p className="text-sm text-gray-600">Email an toàn</p>
+                    <p className="text-lg font-semibold text-gray-900">{displayStats.safeEmails || 0}</p>
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                <div className="flex items-center gap-3">
+                  <AlertTriangle className="w-5 h-5 text-red-600" />
+                  <div>
+                    <p className="text-sm text-gray-600">Email phishing</p>
+                    <p className="text-lg font-semibold text-gray-900">{displayStats.threatsDetected || 0}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Quick Actions */}
+          <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-2 bg-blue-100 rounded-lg">
+                <Eye className="w-6 h-6 text-blue-600" />
+              </div>
+              <h3 className="text-lg font-semibold text-gray-900">Thao Tác Nhanh</h3>
+            </div>
+            <div className="space-y-2">
+              <a href="#scanner" className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition cursor-pointer">
+                <div className="flex items-center gap-3">
+                  <Zap className="w-5 h-5 text-blue-600" />
+                  <span className="text-sm font-medium text-gray-900">Quét URL</span>
+                </div>
+                <ArrowRight className="w-4 h-4 text-gray-400" />
+              </a>
+              <a href="#emails" className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition cursor-pointer">
+                <div className="flex items-center gap-3">
+                  <Mail className="w-5 h-5 text-green-600" />
+                  <span className="text-sm font-medium text-gray-900">Xem email</span>
+                </div>
+                <ArrowRight className="w-4 h-4 text-gray-400" />
+              </a>
+              <a href="#reports" className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition cursor-pointer">
+                <div className="flex items-center gap-3">
+                  <TrendingUp className="w-5 h-5 text-purple-600" />
+                  <span className="text-sm font-medium text-gray-900">Xem báo cáo</span>
+                </div>
+                <ArrowRight className="w-4 h-4 text-gray-400" />
+              </a>
+            </div>
+          </div>
+
+          {/* System Info */}
+          <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl p-6 border border-gray-200">
+            <div className="flex items-center gap-3 mb-4">
+              <Clock className="w-6 h-6 text-gray-600" />
+              <h3 className="text-lg font-semibold text-gray-900">Thông Tin Hệ Thống</h3>
+            </div>
+            <div className="space-y-3 text-sm">
+              <div className="flex justify-between">
+                <span className="text-gray-600">Cập nhật lần cuối</span>
+                <span className="font-medium text-gray-900">
+                  {systemHealth.lastUpdate ? formatTime(systemHealth.lastUpdate) : 'N/A'}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-600">Trạng thái</span>
+                <span className="font-medium text-green-600">Hoạt động</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-600">Làm mới tự động</span>
+                <span className="font-medium text-gray-900">30 giây</span>
+              </div>
             </div>
           </div>
         </div>

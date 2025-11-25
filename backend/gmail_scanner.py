@@ -232,10 +232,11 @@ class GmailScanner:
                 'subject': email_data['subject'],
                 'body': email_data['body'],
                 'html': email_data['html'],
-                'attachments': email_data['attachments']
+                'attachments': email_data['attachments'],
+                'urls': email_data.get('urls', [])  # Extract URLs if available
             }
             
-            # Call backend API
+            # Call backend API - use analyze-email endpoint
             response = requests.post(
                 f"{BACKEND_API_URL}/analyze-email",
                 json=payload,

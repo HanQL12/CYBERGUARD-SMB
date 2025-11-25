@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { Mail, Activity, RefreshCw, CheckCircle, TrendingUp, Globe, Eye } from 'lucide-react';
 import StatCard from './StatCard';
 import EmailDetailModal from './EmailDetailModal';
@@ -14,35 +14,35 @@ const EmailProtectionTab = ({
   const [selectedEmail, setSelectedEmail] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
-  const handleViewDetails = (email) => {
+  const handleViewDetails = useCallback((email) => {
     setSelectedEmail(email);
     setIsModalOpen(true);
-  };
+  }, []);
 
-  const handleCloseModal = () => {
+  const handleCloseModal = useCallback(() => {
     setIsModalOpen(false);
     setSelectedEmail(null);
-  };
+  }, []);
 
-  const handleEnableMFA = (emailId, url) => {
+  const handleEnableMFA = useCallback((emailId, url) => {
     console.log('Enable MFA for email:', emailId, 'URL:', url);
     // TODO: Call API to enable MFA
     alert(`[MFA ENABLED] Bảo vệ đã được kích hoạt cho URL: ${url}`);
-  };
+  }, []);
 
-  const handleEnableSandbox = (emailId, filename) => {
+  const handleEnableSandbox = useCallback((emailId, filename) => {
     console.log('Enable Sandbox for email:', emailId, 'File:', filename);
     // TODO: Call API to enable sandbox
     alert(`[SANDBOX ENABLED] File sẽ được mở trong môi trường cô lập: ${filename}`);
-  };
+  }, []);
 
-  const handleDisconnect = () => {
+  const handleDisconnect = useCallback(() => {
     console.log('Disconnect device');
     // TODO: Call API to disconnect
     alert('[DISCONNECT] Đã ngắt kết nối máy để bảo vệ');
-  };
+  }, []);
 
-  const getThreatTypeBadge = (email) => {
+  const getThreatTypeBadge = useCallback((email) => {
     const threatType = email.threat_type || (email.is_phishing ? 'multiple' : 'safe');
     const badges = [];
     
@@ -65,7 +65,7 @@ const EmailProtectionTab = ({
     }
     
     return badges;
-  };
+  }, []);
 
   return (
     <div className="space-y-6">

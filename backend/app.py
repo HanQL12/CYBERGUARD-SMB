@@ -4,49 +4,108 @@ Email Security Analyzer Backend API
 Sequential Analysis: File > URL > CEO Fraud
 """
 
+
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 import hashlib
 import re
 import time
 import os
-from dotenv import load_dotenv
-import logging
+import unicodedata
+from logging.handlers import RotatingFileHandler
 from datetime import datetime
+from functools import lru_cache
+from typing import Dict, Any, Optional
+
 from gmail_helper import GmailHelper
+from constants import (
+    PHISHING_LABEL, SAFE_LABEL, VIRUSTOTAL_TIMEOUT,
+    VIRUSTOTAL_WAIT_TIME, CEO_FRAUD_CONFIDENCE_THRESHOLD
+)
+from email_analyzer import extract_urls
+from config import Config
+from error_handlers import (
+    register_error_handlers, ValidationError, NotFoundError, ExternalAPIError
+)
+from validators import (
+    validate_email_data, validate_scan_url_request,
+    validate_email_id, validate_email_ids, sanitize_string
+)
 
-# Load environment variables
-load_dotenv()
-
-# Configure logging
+# Configure logging with rotation
+import logging
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    level=getattr(logging, Config.LOG_LEVEL.upper(), logging.INFO),
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler(),
+        RotatingFileHandler(
+            Config.LOG_FILE,
+            maxBytes=Config.LOG_MAX_BYTES,
+            backupCount=Config.LOG_BACKUP_COUNT,
+            encoding='utf-8'
+        )
+    ]
 )
 logger = logging.getLogger(__name__)
 
+# Create a session with connection pooling and retry strategy
+def create_session():
+    session = requests.Session()
+    retry_strategy = Retry(
+        total=3,
+        backoff_factor=1,
+        status_forcelist=[429, 500, 502, 503, 504],
+        allowed_methods=["GET", "POST"]
+    )
+    adapter = HTTPAdapter(
+        max_retries=retry_strategy,
+        pool_connections=10,
+        pool_maxsize=20
+    )
+    session.mount("http://", adapter)
+    session.mount("https://", adapter)
+    return session
+
+# Global session for reuse
+http_session = create_session()
+
+# Validate configuration
+is_valid, warnings = Config.validate()
+if warnings:
+    for warning in warnings:
+        logger.warning(warning)
+
 app = Flask(__name__)
-CORS(app)  # Enable CORS for frontend
 
-# Configuration
-VIRUSTOTAL_API_KEY = os.getenv('VIRUSTOTAL_API_KEY', 'fc8fef0c12df79ad7d5cae8d649eb6a0d2c7474503915f775c181c7288a7102d')
-# Chatbot API Options (Free):
-# 1. Google Gemini (Free tier - Recommended)
-GEMINI_API_KEY = os.getenv('GEMINI_API_KEY', '')
-# 2. Hugging Face Chat (Free)
-HUGGINGFACE_API_KEY = os.getenv('HUGGINGFACE_API_KEY', '')
-# 3. Groq (Free, very fast)
-GROQ_API_KEY = os.getenv('GROQ_API_KEY', '')
+# Configure CORS with specific origins
+cors_origins = Config.get_cors_origins()
+CORS(app, origins=cors_origins, supports_credentials=True)
+logger.info(f"CORS configured for origins: {', '.join(cors_origins)}")
 
-VIRUSTOTAL_BASE_URL = "https://www.virustotal.com/api/v3"
+# Register error handlers
+register_error_handlers(app)
 
-# Labels
-PHISHING_LABEL = "Label_8387377442759074354"
-SAFE_LABEL = "Label_291990169998442549"
+# Import VirusTotal Manager
+from virustotal_manager import VirusTotalKeyManager
+
+# Initialize VirusTotal Key Manager
+vt_key_manager = VirusTotalKeyManager(
+    Config.VIRUSTOTAL_API_KEY_1,
+    Config.VIRUSTOTAL_API_KEY_2
+)
 
 # Initialize Gmail Helper
 gmail_helper = GmailHelper()
+
+# API Keys for CEO Fraud Detection
+GEMINI_API_KEY = Config.GEMINI_API_KEY
+GROQ_API_KEY = Config.GROQ_API_KEY
+HUGGINGFACE_API_KEY = Config.HUGGINGFACE_API_KEY
+VIRUSTOTAL_BASE_URL = Config.VIRUSTOTAL_BASE_URL
 
 
 @app.route('/health', methods=['GET'])
@@ -58,6 +117,7 @@ def health():
     })
 
 
+# Internal endpoint - used by gmail_scanner.py, not directly by frontend
 @app.route('/analyze-email', methods=['POST'])
 def analyze_email():
     """
@@ -81,197 +141,39 @@ def analyze_email():
     """
     try:
         data = request.get_json()
+        if not data:
+            raise ValidationError("Request body is required")
+        
+        # Validate input
+        is_valid, error_msg = validate_email_data(data)
+        if not is_valid:
+            raise ValidationError(error_msg or "Invalid request data")
+        
         logger.info(f"Received email analysis request: {data.get('subject', 'No subject')}")
         
-        # Extract data
-        subject = data.get('subject', '')
-        body = data.get('body', '')
-        html = data.get('html', '')
+        # Extract and sanitize data
+        subject = sanitize_string(data.get('subject', ''), max_length=500)
+        body = sanitize_string(data.get('body', ''), max_length=50000)
+        html = sanitize_string(data.get('html', ''), max_length=100000)
         attachments = data.get('attachments', [])
         pre_extracted_urls = data.get('urls', [])
         
-        threats = []
-        details = {}
-        
-        # STEP 1: File Analysis (Priority 1)
-        if attachments:
-            logger.info(f"Analyzing {len(attachments)} file(s)...")
-            file_result = analyze_files(attachments)
-            details['file_analysis'] = file_result
-            
-            if file_result['is_malicious']:
-                threats.append('malicious_file')
-                logger.warning(f"🚨 MALICIOUS FILE DETECTED: {file_result['total_malicious']} detections")
-                return jsonify({
-                    "is_phishing": True,
-                    "threats": threats,
-                    "label": PHISHING_LABEL,
-                    "details": details,
-                    "analysis_order": "file"
-                })
-        
-        # STEP 2: URL Analysis (Priority 2)
-        urls = pre_extracted_urls or extract_urls(subject, body, html)
-        if urls:
-            logger.info(f"Analyzing {len(urls)} URL(s)...")
-            url_result = analyze_urls(urls)
-            details['url_analysis'] = url_result
-            
-            if url_result['is_malicious']:
-                threats.append('malicious_url')
-                logger.warning(f"🚨 MALICIOUS URL DETECTED: {url_result['total_malicious']} detections")
-                return jsonify({
-                    "is_phishing": True,
-                    "threats": threats,
-                    "label": PHISHING_LABEL,
-                    "details": details,
-                    "analysis_order": "url"
-                })
-        
-        # STEP 3: CEO Fraud Detection (Priority 3) - Using Chatbot API
-        logger.info("Analyzing CEO fraud using chatbot API...")
-        ceo_result = detect_ceo_fraud_with_chatbot(subject, body, html)
-        details['ceo_fraud'] = ceo_result
-        
-        # CEO fraud detection: Lower threshold for better sensitivity
-        # Trust AI analysis more than pattern matching
-        ceo_confidence = ceo_result.get('confidence', 0)
-        ceo_detected = ceo_result.get('detected', False)
-        
-        # If Gemini/Groq detected with confidence >= 30%, consider it fraud
-        # This is more sensitive than pattern-based (which requires multiple keywords)
-        if ceo_detected and ceo_confidence >= 30:
-            threats.append('ceo_fraud')
-            logger.warning(f"🚨 CEO FRAUD DETECTED: Confidence {ceo_confidence}% - {ceo_result.get('reason', '')}")
-            return jsonify({
-                "is_phishing": True,
-                "threats": threats,
-                "label": PHISHING_LABEL,
-                "details": details,
-                "analysis_order": "ceo_fraud"
-            })
-        
-        # All checks passed - SAFE
-        logger.info("✅ Email is SAFE - All checks passed")
-        return jsonify({
-            "is_phishing": False,
-            "threats": [],
-            "label": SAFE_LABEL,
-            "details": details,
-            "analysis_order": "all_safe"
-        })
-        
-    except Exception as e:
-        logger.error(f"Error analyzing email: {str(e)}", exc_info=True)
-        return jsonify({
-            "error": "Internal server error",
-            "message": str(e)
-        }), 500
-
-
-@app.route('/analyze-url', methods=['POST'])
-def analyze_url():
-    """
-    Analyze single URL using VirusTotal
-    
-    Request body:
-    {
-        "url": "https://example.com"
-    }
-    """
-    try:
-        data = request.get_json()
-        url = data.get('url')
-        
-        if not url:
-            return jsonify({"error": "URL is required"}), 400
-        
-        logger.info(f"Analyzing URL: {url}")
-        result = analyze_urls([url])
-        
-        return jsonify({
-            "url": url,
-            "is_malicious": result['is_malicious'],
-            "total_malicious": result['total_malicious'],
-            "details": result
-        })
-        
-    except Exception as e:
-        logger.error(f"Error analyzing URL: {str(e)}", exc_info=True)
-        return jsonify({"error": str(e)}), 500
-
-
-@app.route('/analyze-file', methods=['POST'])
-def analyze_file():
-    """
-    Analyze file using VirusTotal
-    
-    Request body:
-    {
-        "filename": "file.pdf",
-        "data": "base64_encoded_file_data",
-        "mimeType": "application/pdf"
-    }
-    """
-    try:
-        data = request.get_json()
-        file_data = data.get('data')  # Base64 encoded
-        filename = data.get('filename', 'unknown')
-        
-        if not file_data:
-            return jsonify({"error": "File data is required"}), 400
-        
-        logger.info(f"Analyzing file: {filename}")
-        
-        # Decode base64
-        import base64
-        file_bytes = base64.b64decode(file_data)
-        
-        # Calculate hash
-        file_hash = hashlib.sha256(file_bytes).hexdigest()
-        
-        # Check VirusTotal
-        result = check_virustotal_file(file_hash)
-        
-        return jsonify({
-            "filename": filename,
-            "hash": file_hash,
-            "is_malicious": result['malicious'] > 0,
-            "total_malicious": result['malicious'],
-            "details": result
-        })
-        
-    except Exception as e:
-        logger.error(f"Error analyzing file: {str(e)}", exc_info=True)
-        return jsonify({"error": str(e)}), 500
-
-
-@app.route('/detect-ceo-fraud', methods=['POST'])
-def detect_ceo_fraud():
-    """
-    Detect CEO fraud using Chatbot API
-    
-    Request body:
-    {
-        "subject": "Email subject",
-        "body": "Email body",
-        "html": "Email HTML"
-    }
-    """
-    try:
-        data = request.get_json()
-        subject = data.get('subject', '')
-        body = data.get('body', '')
-        html = data.get('html', '')
-        
-        logger.info("Detecting CEO fraud with chatbot API...")
-        result = detect_ceo_fraud_with_chatbot(subject, body, html)
+        # Use shared analysis logic
+        result = _perform_email_analysis(
+            subject, body, html, attachments, pre_extracted_urls, include_label=True
+        )
         
         return jsonify(result)
         
+    except ValidationError:
+        raise  # Re-raise validation errors (handled by error handler)
     except Exception as e:
-        logger.error(f"Error detecting CEO fraud: {str(e)}", exc_info=True)
-        return jsonify({"error": str(e)}), 500
+        logger.error(f"Error analyzing email: {str(e)}", exc_info=True)
+        raise  # Let error handler catch it
+
+
+# Removed unused endpoints: /analyze-url, /analyze-file, /detect-ceo-fraud
+# These are only used internally, not by frontend
 
 
 @app.route('/dashboard-data', methods=['GET'])
@@ -334,63 +236,609 @@ def reports_data():
         }), 500
 
 
-@app.route('/scan-url', methods=['POST'])
-def scan_url():
+@app.route('/tasks-data', methods=['GET'])
+def tasks_data():
     """
-    Scan URL for threats
-    Replaces n8n /scan-url endpoint
+    Get processed and unprocessed emails for tasks tab
+    """
+    try:
+        use_cache = request.args.get('refresh', 'false').lower() != 'true'
+        
+        # Authenticate if needed
+        if not gmail_helper.service:
+            if not gmail_helper.authenticate():
+                return jsonify({
+                    'processed': [],
+                    'unprocessed': []
+                }), 500
+        
+        # Get processed emails (emails with labels)
+        phishing_messages = gmail_helper.get_emails_by_label(PHISHING_LABEL, max_results=100)
+        safe_messages = gmail_helper.get_emails_by_label(SAFE_LABEL, max_results=100)
+        
+        # Format processed emails
+        processed = []
+        for msg in phishing_messages:
+            email_details = gmail_helper.get_email_details(msg['id'])
+            if email_details:
+                processed.append({
+                    'id': email_details['id'],
+                    'subject': email_details['subject'],
+                    'sender': email_details['sender'],
+                    'date': email_details['date'],
+                    'is_phishing': True,
+                    'is_processed': True,
+                    'status': 'blocked',
+                    'url_count': email_details.get('url_count', 0)
+                })
+        
+        for msg in safe_messages:
+            email_details = gmail_helper.get_email_details(msg['id'])
+            if email_details:
+                processed.append({
+                    'id': email_details['id'],
+                    'subject': email_details['subject'],
+                    'sender': email_details['sender'],
+                    'date': email_details['date'],
+                    'is_phishing': False,
+                    'is_processed': True,
+                    'status': 'verified',
+                    'url_count': email_details.get('url_count', 0)
+                })
+        
+        # Get unprocessed emails (unread emails without labels)
+        try:
+            # Get unread emails excluding those with our labels
+            unprocessed_messages = gmail_helper.get_unread_emails(
+                max_results=50,
+                exclude_labels=[PHISHING_LABEL, SAFE_LABEL]
+            )
+            
+            # Format unprocessed emails
+            unprocessed = []
+            processed_ids = {p['id'] for p in processed}
+            
+            for msg in unprocessed_messages:
+                if msg['id'] not in processed_ids:
+                    email_details = gmail_helper.get_email_details(msg['id'])
+                    if email_details:
+                        unprocessed.append({
+                            'id': email_details['id'],
+                            'subject': email_details['subject'],
+                            'sender': email_details['sender'],
+                            'date': email_details['date'],
+                            'is_phishing': False,
+                            'is_processed': False,
+                            'status': 'pending',
+                            'url_count': email_details.get('url_count', 0)
+                        })
+        except Exception as e:
+            logger.error(f"Error getting unprocessed emails: {str(e)}")
+            unprocessed = []
+        
+        # Sort by date (newest first)
+        processed.sort(key=lambda x: x.get('date', ''), reverse=True)
+        unprocessed.sort(key=lambda x: x.get('date', ''), reverse=True)
+        
+        return jsonify({
+            'processed': processed,
+            'unprocessed': unprocessed
+        })
+        
+    except Exception as e:
+        logger.error(f"Error getting tasks data: {str(e)}", exc_info=True)
+        return jsonify({
+            'processed': [],
+            'unprocessed': []
+        }), 500
+
+
+@app.route('/scan-email-urgent', methods=['POST'])
+def scan_email_urgent():
+    """
+    Scan a single email urgently - Full analysis with file, URL, and CEO fraud detection
     """
     try:
         data = request.get_json()
-        url = data.get('url', '')
+        if not data:
+            raise ValidationError("Request body is required")
         
-        if not url:
-            return jsonify({"error": "URL is required"}), 400
+        email_id = data.get('email_id')
+        if not email_id:
+            raise ValidationError("email_id is required")
         
-        logger.info(f"Scanning URL: {url}")
+        if not validate_email_id(email_id):
+            raise ValidationError("Invalid email_id format")
         
-        # Use existing URL analysis logic
+        logger.info(f"🔍 Urgent scan requested for email: {email_id}")
+        
+        # Authenticate if needed
+        if not gmail_helper.service:
+            if not gmail_helper.authenticate():
+                return jsonify({"error": "Authentication failed"}), 500
+        
+        # Get full email details including attachments
+        email_details = gmail_helper.get_email_details_with_attachments(email_id)
+        if not email_details:
+            raise NotFoundError("Email not found")
+        
+        logger.info(f"📧 Email subject: {email_details.get('subject', 'No subject')}")
+        
+        # Prepare payload for full analysis
+        payload = {
+            'subject': email_details.get('subject', ''),
+            'body': email_details.get('body', ''),
+            'html': email_details.get('html', ''),
+            'urls': email_details.get('urls', []),
+            'attachments': email_details.get('attachments', [])
+        }
+        
+        # Analyze email with full logic
+        result_data = analyze_email_logic_full(payload)
+        
+        is_phishing = result_data.get('is_phishing', False)
+        threats = result_data.get('threats', [])
+        
+        # Label email based on result
+        if is_phishing:
+            label_id = PHISHING_LABEL
+            logger.warning(f"🚨 PHISHING detected: {email_id} - Threats: {threats}")
+        else:
+            label_id = SAFE_LABEL
+            logger.info(f"✅ Email is SAFE: {email_id}")
+        
+        # Add label to email
+        try:
+            gmail_helper.service.users().messages().modify(
+                userId='me',
+                id=email_id,
+                body={'addLabelIds': [label_id]}
+            ).execute()
+            logger.info(f"✅ Labeled email {email_id} with {label_id}")
+            
+            # Mark as read
+            gmail_helper.service.users().messages().modify(
+                userId='me',
+                id=email_id,
+                body={'removeLabelIds': ['UNREAD']}
+            ).execute()
+            logger.info(f"✅ Marked email {email_id} as read")
+        except Exception as e:
+            logger.warning(f"Could not label/mark email: {str(e)}")
+        
+        return jsonify({
+            'success': True,
+            'email_id': email_id,
+            'is_phishing': is_phishing,
+            'threats': threats,
+            'subject': email_details.get('subject', '')
+        })
+        
+    except (ValidationError, NotFoundError):
+        raise  # Re-raise (handled by error handler)
+    except Exception as e:
+        logger.error(f"Error scanning email urgently: {str(e)}", exc_info=True)
+        raise  # Let error handler catch it
+
+
+@app.route('/scan-emails-urgent', methods=['POST'])
+def scan_emails_urgent():
+    """
+    Scan multiple emails urgently - Parallel processing with dual API keys
+    Each API key processes one email simultaneously
+    """
+    try:
+        data = request.get_json()
+        if not data:
+            raise ValidationError("Request body is required")
+        
+        email_ids = data.get('email_ids', [])
+        if not email_ids:
+            raise ValidationError("email_ids is required")
+        
+        if not validate_email_ids(email_ids):
+            raise ValidationError("Invalid email_ids format or too many emails (max 100)")
+        
+        logger.info(f"🔍 Urgent parallel batch scan requested for {len(email_ids)} emails")
+        
+        if not gmail_helper.service:
+            if not gmail_helper.authenticate():
+                return jsonify({"error": "Authentication failed"}), 500
+        
+        # Use parallel processing if we have multiple emails and multiple API keys
+        if len(email_ids) > 1 and len(vt_key_manager.keys) > 1:
+            return scan_emails_parallel(email_ids)
+        
+        # Fallback to sequential processing
+        processed_count = 0
+        phishing_count = 0
+        safe_count = 0
+        errors = []
+        
+        for idx, email_id in enumerate(email_ids, 1):
+            try:
+                logger.info(f"Processing email {idx}/{len(email_ids)}: {email_id}")
+                
+                result = process_single_email(email_id)
+                if result:
+                    processed_count += 1
+                    if result['is_phishing']:
+                        phishing_count += 1
+                    else:
+                        safe_count += 1
+                else:
+                    errors.append(f"Email {email_id}: Processing failed")
+                
+            except Exception as e:
+                logger.error(f"Error processing email {email_id}: {str(e)}")
+                errors.append(f"Email {email_id}: {str(e)}")
+                continue
+        
+        logger.info(f"✅ Batch scan completed: {processed_count}/{len(email_ids)} processed ({phishing_count} phishing, {safe_count} safe)")
+        
+        return jsonify({
+            'success': True,
+            'processed_count': processed_count,
+            'phishing_count': phishing_count,
+            'safe_count': safe_count,
+            'total': len(email_ids),
+            'errors': errors if errors else None
+        })
+        
+    except ValidationError:
+        raise  # Re-raise (handled by error handler)
+    except Exception as e:
+        logger.error(f"Error scanning emails urgently: {str(e)}", exc_info=True)
+        raise  # Let error handler catch it
+
+
+def process_single_email(email_id):
+    """Process a single email - extracted for parallel processing"""
+    try:
+        # Use thread-safe Gmail service for parallel processing
+        thread_safe_service = gmail_helper.get_thread_safe_service()
+        if not thread_safe_service:
+            logger.error("Unable to build Gmail service for thread-safe processing")
+            return None
+
+        # Get full email details with attachments
+        email_details = gmail_helper.get_email_details_with_attachments(
+            email_id,
+            service=thread_safe_service
+        )
+        if not email_details:
+            logger.warning(f"Email {email_id} not found")
+            return None
+        
+        # Analyze email with full logic
+        payload = {
+            'subject': email_details.get('subject', ''),
+            'body': email_details.get('body', ''),
+            'html': email_details.get('html', ''),
+            'urls': email_details.get('urls', []),
+            'attachments': email_details.get('attachments', [])
+        }
+        
+        result = analyze_email_logic_full(payload)
+        is_phishing = result.get('is_phishing', False)
+        
+        # Label email
+        if is_phishing:
+            label_id = PHISHING_LABEL
+            logger.warning(f"🚨 PHISHING detected: {email_id}")
+        else:
+            label_id = SAFE_LABEL
+            logger.info(f"✅ Email is SAFE: {email_id}")
+        
+        # Add label
+        thread_safe_service.users().messages().modify(
+            userId='me',
+            id=email_id,
+            body={'addLabelIds': [label_id]}
+        ).execute()
+        
+        # Mark as read
+        thread_safe_service.users().messages().modify(
+            userId='me',
+            id=email_id,
+            body={'removeLabelIds': ['UNREAD']}
+        ).execute()
+        
+        return {
+            'email_id': email_id,
+            'is_phishing': is_phishing,
+            'subject': email_details.get('subject', '')
+        }
+        
+    except Exception as e:
+        logger.error(f"Error processing email {email_id}: {str(e)}")
+        return None
+
+
+def scan_emails_parallel(email_ids):
+    """Scan multiple emails in parallel using dual API keys"""
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+    
+    processed_count = 0
+    phishing_count = 0
+    safe_count = 0
+    errors = []
+    
+    # Determine number of workers (max 2 for 2 API keys)
+    max_workers = min(len(vt_key_manager.keys), len(email_ids), 2)
+    
+    logger.info(f"🚀 Starting parallel scan: {len(email_ids)} emails with {max_workers} workers (API keys)")
+    
+    def process_email_with_key(email_id, worker_id):
+        """Process email with specific worker/API key assignment"""
+        try:
+            logger.info(f"Worker {worker_id} processing email: {email_id}")
+            result = process_single_email(email_id)
+            return {
+                'success': result is not None,
+                'result': result,
+                'email_id': email_id,
+                'worker_id': worker_id
+            }
+        except Exception as e:
+            logger.error(f"Worker {worker_id} error processing {email_id}: {str(e)}")
+            return {
+                'success': False,
+                'result': None,
+                'email_id': email_id,
+                'worker_id': worker_id,
+                'error': str(e)
+            }
+    
+    # Use ThreadPoolExecutor for parallel processing
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        # Submit all emails for processing
+        # Distribute emails to workers (round-robin assignment)
+        futures = []
+        for idx, email_id in enumerate(email_ids):
+            worker_id = idx % max_workers
+            future = executor.submit(process_email_with_key, email_id, worker_id)
+            futures.append(future)
+        
+        # Collect results as they complete
+        for future in as_completed(futures):
+            try:
+                result_data = future.result()
+                if result_data['success'] and result_data['result']:
+                    processed_count += 1
+                    if result_data['result']['is_phishing']:
+                        phishing_count += 1
+                    else:
+                        safe_count += 1
+                else:
+                    errors.append(f"Email {result_data['email_id']}: {result_data.get('error', 'Processing failed')}")
+            except Exception as e:
+                logger.error(f"Error getting result from future: {str(e)}")
+                errors.append(f"Unknown error: {str(e)}")
+    
+    logger.info(f"✅ Parallel batch scan completed: {processed_count}/{len(email_ids)} processed ({phishing_count} phishing, {safe_count} safe)")
+    
+    return jsonify({
+        'success': True,
+        'processed_count': processed_count,
+        'phishing_count': phishing_count,
+        'safe_count': safe_count,
+        'total': len(email_ids),
+        'errors': errors if errors else None,
+        'method': 'parallel',
+        'workers': max_workers
+    })
+
+
+def _perform_email_analysis(
+    subject: str,
+    body: str,
+    html: str,
+    attachments: list,
+    pre_extracted_urls: Optional[list] = None,
+    include_label: bool = False
+) -> Dict[str, Any]:
+    """
+    Core email analysis logic (shared by analyze_email and analyze_email_logic_full)
+    Priority: File > URL > CEO Fraud
+    
+    Args:
+        subject: Email subject
+        body: Email body text
+        html: Email HTML content
+        attachments: List of attachments
+        pre_extracted_urls: Pre-extracted URLs (optional)
+        include_label: Whether to include label in response
+    
+    Returns:
+        Analysis result dictionary
+    """
+    threats = []
+    details = {}
+    
+    # STEP 1: File Analysis (Priority 1)
+    if attachments:
+        logger.info(f"Analyzing {len(attachments)} file(s)...")
+        file_result = analyze_files(attachments)
+        details['file_analysis'] = file_result
+        
+        if file_result['is_malicious']:
+            threats.append('malicious_file')
+            logger.warning(f"🚨 MALICIOUS FILE DETECTED: {file_result['total_malicious']} detections")
+            result = {
+                "is_phishing": True,
+                "threats": threats,
+                "details": details,
+                "analysis_order": "file"
+            }
+            if include_label:
+                result["label"] = PHISHING_LABEL
+            return result
+    
+    # STEP 2: URL Analysis (Priority 2)
+    urls = pre_extracted_urls or extract_urls(subject, body, html)
+    if urls:
+        logger.info(f"Analyzing {len(urls)} URL(s)...")
+        url_result = analyze_urls(urls)
+        details['url_analysis'] = url_result
+        
+        if url_result['is_malicious']:
+            threats.append('malicious_url')
+            logger.warning(f"🚨 MALICIOUS URL DETECTED: {url_result['total_malicious']} detections")
+            result = {
+                "is_phishing": True,
+                "threats": threats,
+                "details": details,
+                "analysis_order": "url"
+            }
+            if include_label:
+                result["label"] = PHISHING_LABEL
+            return result
+    
+    # STEP 3: CEO Fraud Detection (Priority 3)
+    logger.info("Analyzing CEO fraud...")
+    ceo_result = detect_ceo_fraud_with_chatbot(subject, body, html) or {}
+    
+    ceo_confidence = ceo_result.get('confidence', 0) or 0
+    ceo_detected = ceo_result.get('detected', False)
+    
+    details['ceo_fraud'] = ceo_result
+    
+    if ceo_detected and ceo_confidence >= CEO_FRAUD_CONFIDENCE_THRESHOLD:
+        threats.append('ceo_fraud')
+        logger.warning(f"🚨 CEO FRAUD DETECTED: Confidence {ceo_confidence}%")
+        result = {
+            "is_phishing": True,
+            "threats": threats,
+            "details": details,
+            "analysis_order": "ceo_fraud"
+        }
+        if include_label:
+            result["label"] = PHISHING_LABEL
+        return result
+    
+    # All checks passed - SAFE
+    logger.info("✅ Email is SAFE - All checks passed")
+    result = {
+        "is_phishing": False,
+        "threats": [],
+        "details": details,
+        "analysis_order": "all_safe"
+    }
+    if include_label:
+        result["label"] = SAFE_LABEL
+    return result
+
+
+def analyze_email_logic_full(data: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Full email analysis logic (used by urgent scan endpoints)
+    Priority: File > URL > CEO Fraud
+    """
+    subject = data.get('subject', '')
+    body = data.get('body', '')
+    html = data.get('html', '')
+    attachments = data.get('attachments', [])
+    pre_extracted_urls = data.get('urls', [])
+    
+    return _perform_email_analysis(
+        subject, body, html, attachments, pre_extracted_urls, include_label=False
+    )
+
+
+@app.route('/scan-url', methods=['POST'])
+def scan_url():
+    """
+    Scan URL for threats using VirusTotal API
+    Returns detailed analysis results from VirusTotal
+    """
+    try:
+        data = request.get_json()
+        if not data:
+            raise ValidationError("Request body is required")
+        
+        # Validate URL
+        is_valid, error_msg = validate_scan_url_request(data)
+        if not is_valid:
+            raise ValidationError(error_msg or "Invalid URL")
+        
+        url = data.get('url', '').strip()
+        logger.info(f"🔍 Scanning URL with VirusTotal: {url}")
+        
+        # Use VirusTotal URL analysis
         url_results = analyze_urls([url])
         
         if url_results['url_results']:
             result = url_results['url_results'][0]
             is_malicious = result.get('is_malicious', False)
             malicious_count = result.get('malicious', 0)
+            suspicious_count = result.get('suspicious', 0)
+            harmless_count = result.get('harmless', 0)
+            total_engines = malicious_count + suspicious_count + harmless_count
+            
+            # Determine risk level based on VirusTotal results
+            if malicious_count > 0:
+                risk_level = 'HIGH'
+                threat_type = 'Phishing' if malicious_count >= 5 else 'Malware'
+                confidence = min(95, 50 + (malicious_count * 3))
+                categories = ['phishing', 'malware']
+            elif suspicious_count > 0:
+                risk_level = 'MEDIUM'
+                threat_type = 'Suspicious'
+                confidence = 30 + (suspicious_count * 2)
+                categories = ['suspicious']
+            else:
+                risk_level = 'LOW'
+                threat_type = 'Safe'
+                confidence = max(5, min(20, harmless_count))
+                categories = ['safe']
             
             return jsonify({
                 'url': url,
                 'is_malicious': is_malicious,
                 'malicious': malicious_count,
-                'suspicious': result.get('suspicious', 0),
-                'harmless': result.get('harmless', 0),
-                'risk_level': 'HIGH' if is_malicious else 'LOW',
-                'threat_type': 'Phishing' if is_malicious else 'Safe',
-                'confidence': min(95, malicious_count * 5) if is_malicious else 5,
-                'vendors': f"{malicious_count}/90",
-                'categories': ['phishing', 'malware'] if is_malicious else ['safe'],
-                'timestamp': datetime.now().isoformat()
+                'suspicious': suspicious_count,
+                'harmless': harmless_count,
+                'total_engines': total_engines,
+                'risk_level': risk_level,
+                'threat_type': threat_type,
+                'confidence': min(95, max(5, confidence)),
+                'vendors': f"{malicious_count}/{total_engines if total_engines > 0 else 90}",
+                'categories': categories,
+                'timestamp': datetime.now().isoformat(),
+                'source': 'VirusTotal',
+                'scan_id': result.get('scan_id')
             })
         else:
+            # Fallback if no results
+            logger.warning(f"No results from VirusTotal for URL: {url}")
             return jsonify({
                 'url': url,
                 'is_malicious': False,
                 'malicious': 0,
+                'suspicious': 0,
+                'harmless': 0,
+                'total_engines': 0,
                 'risk_level': 'LOW',
                 'threat_type': 'Safe',
                 'confidence': 5,
                 'vendors': '0/90',
                 'categories': ['safe'],
-                'timestamp': datetime.now().isoformat()
+                'timestamp': datetime.now().isoformat(),
+                'source': 'VirusTotal',
+                'error': 'No results available'
             })
         
+    except ValidationError:
+        raise  # Re-raise (handled by error handler)
     except Exception as e:
         logger.error(f"Error scanning URL: {str(e)}", exc_info=True)
-        return jsonify({"error": str(e)}), 500
+        raise ExternalAPIError(str(e), service="VirusTotal")
 
 
 # Helper Functions
 
-def analyze_files(attachments):
+def analyze_files(attachments: list) -> Dict[str, Any]:
     """Analyze file attachments using VirusTotal"""
     total_malicious = 0
     file_results = []
@@ -435,44 +883,71 @@ def analyze_files(attachments):
     }
 
 
-def analyze_urls(urls):
-    """Analyze URLs using VirusTotal (Check Mail.json logic)"""
+def analyze_urls(urls: list) -> Dict[str, Any]:
+    """Analyze URLs using VirusTotal with parallel processing and dual API keys"""
     total_malicious = 0
     url_results = []
     
+    # Use parallel processing for multiple URLs with dual API keys
+    if len(urls) > 1 and len(vt_key_manager.keys) > 1:
+        return analyze_urls_parallel(urls)
+    
+    # Sequential processing for single URL or single API key
     for url in urls:
         try:
             # Submit URL to VirusTotal
             submit_response = submit_url_to_virustotal(url)
             if not submit_response or 'id' not in submit_response:
                 logger.warning(f"Failed to submit URL: {url}")
+                url_results.append({
+                    "url": url,
+                    "malicious": 0,
+                    "suspicious": 0,
+                    "harmless": 0,
+                    "is_malicious": False,
+                    "error": "Failed to submit to VirusTotal"
+                })
                 continue
             
             scan_id = submit_response['id']
-            logger.info(f"URL submitted, scan_id: {scan_id}, waiting 15 seconds...")
+            logger.info(f"URL submitted to VirusTotal, scan_id: {scan_id}, waiting {VIRUSTOTAL_WAIT_TIME} seconds...")
             
-            # Wait 15 seconds (Check Mail.json logic)
-            time.sleep(15)
+            # Wait for VirusTotal to process
+            time.sleep(VIRUSTOTAL_WAIT_TIME)
             
             # Get results
             result = get_virustotal_url_results(scan_id)
             
-            # Check Mail.json logic: malicious > 0 = unsafe
             malicious = result.get('malicious', 0)
+            suspicious = result.get('suspicious', 0)
+            harmless = result.get('harmless', 0)
+            is_malicious = malicious > 0
             
             url_results.append({
                 "url": url,
                 "malicious": malicious,
-                "suspicious": result.get('suspicious', 0),
-                "harmless": result.get('harmless', 0)
+                "suspicious": suspicious,
+                "harmless": harmless,
+                "is_malicious": is_malicious,
+                "scan_id": scan_id
             })
             
-            if malicious > 0:
+            if is_malicious:
                 total_malicious += malicious
                 logger.warning(f"🚨 Malicious URL detected: {url} ({malicious} detections)")
+            else:
+                logger.info(f"✅ URL is safe: {url} (harmless: {harmless}, suspicious: {suspicious})")
             
         except Exception as e:
             logger.error(f"Error analyzing URL {url}: {str(e)}")
+            url_results.append({
+                "url": url,
+                "malicious": 0,
+                "suspicious": 0,
+                "harmless": 0,
+                "is_malicious": False,
+                "error": str(e)
+            })
             continue
     
     return {
@@ -483,421 +958,163 @@ def analyze_urls(urls):
     }
 
 
-def detect_ceo_fraud_with_chatbot(subject, body, html):
-    """
-    Detect CEO fraud using Chatbot API (Free)
-    No whitelist/blacklist - Let chatbot analyze naturally
+def analyze_urls_parallel(urls: list) -> Dict[str, Any]:
+    """Analyze multiple URLs in parallel using dual API keys"""
+    from concurrent.futures import ThreadPoolExecutor, as_completed
     
-    Priority: Gemini > Groq > Hugging Face > Pattern-based
-    """
-    # Combine all text
-    full_text = f"{subject} {body} {html}"
+    total_malicious = 0
+    url_results = []
     
-    # Clean HTML tags
-    import re
-    text = re.sub(r'<[^>]+>', '', full_text)
-    text = text.strip()
-    
-    if not text:
-        return {
-            "detected": False,
-            "confidence": 0,
-            "reason": "No text content"
-        }
-    
-    try:
-        # Try Google Gemini first (Free, best for Vietnamese)
-        if GEMINI_API_KEY:
-            logger.info("Using Google Gemini API for CEO fraud detection")
-            result = analyze_with_gemini(text)
-            if result and result.get('method') == 'gemini_api':
-                return result
-        
-        # Try Groq (Free, very fast)
-        if GROQ_API_KEY:
-            logger.info("Using Groq API for CEO fraud detection")
-            result = analyze_with_groq(text)
-            if result and result.get('method') == 'groq_api':
-                return result
-        
-        # Try Hugging Face Chat
-        if HUGGINGFACE_API_KEY:
-            logger.info("Using Hugging Face Chat API for CEO fraud detection")
-            result = analyze_with_huggingface_chat(text)
-            if result and result.get('method') == 'huggingface_chat':
-                return result
-        
-        # Fallback: Use pattern-based detection if no API key
-        logger.warning("No chatbot API key found, using pattern-based fallback")
-        result = analyze_with_patterns(text)
-        return result
-        
-    except Exception as e:
-        logger.error(f"Error in CEO fraud detection: {str(e)}")
-        # Fallback to pattern-based
-        return analyze_with_patterns(text)
-
-
-def analyze_with_gemini(text):
-    """
-    Analyze text using Google Gemini API (Free)
-    Best for Vietnamese text analysis
-    Improved prompt with few-shot examples and better context
-    """
-    try:
-        api_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
-        
-        # Enhanced prompt with few-shot examples and detailed analysis instructions
-        prompt = f"""Bạn là chuyên gia bảo mật email chuyên phát hiện CEO fraud (Business Email Compromise - BEC) trong bối cảnh doanh nghiệp Việt Nam.
-
-NHIỆM VỤ: Phân tích email và xác định xem có phải là CEO fraud - một hình thức lừa đảo mà kẻ tấn công giả mạo CEO/Giám đốc để yêu cầu nhân viên chuyển tiền.
-
-CÁCH PHÂN TÍCH:
-Bạn là hệ thống phân tích BEC (Business Email Compromise). 
-Hãy đánh giá email dựa trên các tiêu chí sau:
-
-1. Yêu cầu chuyển tiền hoặc thay đổi tài khoản ngân hàng bất ngờ.
-2. Giọng văn bất thường, không chuyên nghiệp, giống chat nội bộ chứ không phải email công ty.
-3. Giả mạo sếp hoặc đồng nghiệp bằng email cá nhân.
-4. Không có quy trình, hóa đơn, lý do rõ ràng.
-5. Áp lực thời gian hoặc yêu cầu làm gấp.
-6. Tài khoản ngân hàng lạ hoặc không liên quan đến công ty.
-7. Email không chứa chữ ký hoặc định dạng theo chuẩn doanh nghiệp.
-8. Phân tích ngữ cảnh và ý định thực sự của email
-9. Tìm các dấu hiệu hành vi đáng ngờ (không phải từ khóa cụ thể)
-10. Xem xét mối quan hệ giữa các yếu tố: ngữ điệu, yêu cầu, bối cảnh
-11. Phân tích tính hợp lý của yêu cầu trong bối cảnh doanh nghiệp
-
-Nếu bất kỳ tiêu chí nào đúng → phân loại: "malicious".
-Nếu không có dấu hiệu đáng ngờ → phân loại: "safe".
-
-VÍ DỤ PHÁT HIỆN CEO FRAUD:
-- Email yêu cầu chuyển tiền với lý do khẩn cấp nhưng không giải thích rõ
-- Yêu cầu giữ bí mật hoặc không liên lạc qua kênh khác
-- Yêu cầu chuyển tiền đến tài khoản lạ, không phải tài khoản công ty
-- Ngữ điệu gấp gáp, ép buộc, không phù hợp với phong cách giao tiếp thông thường
-- Yêu cầu bất thường so với quy trình công ty
-
-VÍ DỤ EMAIL AN TOÀN:
-- Email yêu cầu chuyển tiền nhưng có giải thích rõ ràng, hợp lý
-- Có thông tin xác minh, số hợp đồng, hóa đơn
-- Yêu cầu phù hợp với quy trình và vai trò
-- Ngữ điệu chuyên nghiệp, không ép buộc
-
-EMAIL CẦN PHÂN TÍCH:
-{text[:3000]}
-
-Hãy phân tích kỹ lưỡng và trả lời CHỈ bằng JSON (không có text khác):
-{{
-    "detected": true/false,
-    "confidence": 0-100,
-    "reason": "Giải thích chi tiết tại sao phát hiện hoặc không phát hiện CEO fraud",
-    "indicators": ["dấu hiệu hành vi 1", "dấu hiệu hành vi 2"],
-    "analysis": "Phân tích ngữ cảnh và ý định của email"
-}}
-
-Lưu ý: 
-- "detected": true nếu email có dấu hiệu CEO fraud
-- "confidence": 0-100 dựa trên mức độ chắc chắn (100 = rất chắc chắn)
-- Phân tích dựa trên hành vi và ngữ cảnh, không chỉ từ khóa"""
-        
-        payload = {
-            "contents": [{
-                "parts": [{
-                    "text": prompt
-                }]
-            }],
-            "generationConfig": {
-                "temperature": 0.2,  # Lower temperature for more consistent analysis
-                "topK": 40,
-                "topP": 0.95,
-                "maxOutputTokens": 1024,
+    def analyze_single_url(url):
+        """Analyze a single URL"""
+        try:
+            # Submit URL to VirusTotal
+            submit_response = submit_url_to_virustotal(url)
+            if not submit_response or 'id' not in submit_response:
+                return {
+                    "url": url,
+                    "malicious": 0,
+                    "suspicious": 0,
+                    "harmless": 0,
+                    "is_malicious": False,
+                    "error": "Failed to submit to VirusTotal"
+                }
+            
+            scan_id = submit_response['id']
+            logger.info(f"URL submitted to VirusTotal, scan_id: {scan_id}, waiting {VIRUSTOTAL_WAIT_TIME} seconds...")
+            
+            # Wait for VirusTotal to process
+            time.sleep(VIRUSTOTAL_WAIT_TIME)
+            
+            # Get results
+            result = get_virustotal_url_results(scan_id)
+            
+            malicious = result.get('malicious', 0)
+            suspicious = result.get('suspicious', 0)
+            harmless = result.get('harmless', 0)
+            is_malicious = malicious > 0
+            
+            if is_malicious:
+                logger.warning(f"🚨 Malicious URL detected: {url} ({malicious} detections)")
+            else:
+                logger.info(f"✅ URL is safe: {url} (harmless: {harmless}, suspicious: {suspicious})")
+            
+            return {
+                "url": url,
+                "malicious": malicious,
+                "suspicious": suspicious,
+                "harmless": harmless,
+                "is_malicious": is_malicious,
+                "scan_id": scan_id
             }
-        }
-        
-        response = requests.post(api_url, json=payload, timeout=45)
-        
-        if response.status_code == 200:
-            result = response.json()
-            content = result.get('candidates', [{}])[0].get('content', {}).get('parts', [{}])[0].get('text', '')
-            
-            logger.info(f"Gemini response: {content[:200]}...")
-            
-            # Parse JSON from response
-            import json
-            try:
-                # Try to find JSON in response (handle markdown code blocks)
-                json_match = re.search(r'\{[\s\S]*\}', content)
-                if json_match:
-                    json_str = json_match.group()
-                    parsed = json.loads(json_str)
-                    
-                    detected = parsed.get('detected', False)
-                    confidence = int(parsed.get('confidence', 0))
-                    reason = parsed.get('reason', '')
-                    indicators = parsed.get('indicators', [])
-                    analysis = parsed.get('analysis', '')
-                    
-                    # Validate confidence range
-                    confidence = max(0, min(100, confidence))
-                    
-                    # If detected but confidence is too low, might be false positive
-                    # But trust Gemini's judgment
-                    logger.info(f"Gemini analysis: detected={detected}, confidence={confidence}%")
-                    
-                    return {
-                        "detected": detected,
-                        "confidence": confidence,
-                        "method": "gemini_api",
-                        "reason": reason or analysis or "Phân tích bằng AI",
-                        "indicators": indicators if isinstance(indicators, list) else [],
-                        "analysis": analysis
-                    }
-            except json.JSONDecodeError as e:
-                logger.warning(f"Failed to parse Gemini JSON response: {e}")
-                logger.warning(f"Response content: {content[:500]}")
-            except Exception as e:
-                logger.warning(f"Error parsing Gemini response: {e}")
-            
-            # Fallback: Analyze response text semantically
-            content_lower = content.lower()
-            
-            # Look for semantic indicators, not just keywords
-            fraud_indicators = [
-                'lừa đảo', 'fraud', 'scam', 'giả mạo',
-                'phát hiện', 'detected', 'có dấu hiệu',
-                'đáng ngờ', 'suspicious', 'bất thường'
-            ]
-            
-            safe_indicators = [
-                'an toàn', 'safe', 'hợp lệ', 'legitimate',
-                'không phát hiện', 'not detected'
-            ]
-            
-            fraud_score = sum(1 for ind in fraud_indicators if ind in content_lower)
-            safe_score = sum(1 for ind in safe_indicators if ind in content_lower)
-            
-            # If response clearly indicates fraud
-            if fraud_score > safe_score and fraud_score > 0:
-                # Try to extract confidence from text
-                confidence_match = re.search(r'(\d+)%', content)
-                confidence = int(confidence_match.group(1)) if confidence_match else 70
-                
-                return {
-                    "detected": True,
-                    "confidence": min(confidence, 95),
-                    "method": "gemini_api",
-                    "reason": "AI phát hiện dấu hiệu CEO fraud từ phân tích ngữ cảnh",
-                    "indicators": ["Phân tích ngữ cảnh cho thấy dấu hiệu lừa đảo"]
-                }
-        
-        elif response.status_code == 429:
-            logger.warning("Gemini API rate limit exceeded")
-            return None
-        else:
-            logger.error(f"Gemini API error: {response.status_code} - {response.text[:200]}")
-            return None
-        
-    except requests.exceptions.Timeout:
-        logger.error("Gemini API timeout")
-        return None
-    except Exception as e:
-        logger.error(f"Gemini API error: {str(e)}", exc_info=True)
-        return None
-
-
-def analyze_with_groq(text):
-    """
-    Analyze text using Groq API (Free, very fast)
-    """
-    try:
-        api_url = "https://api.groq.com/openai/v1/chat/completions"
-        
-        headers = {
-            "Authorization": f"Bearer {GROQ_API_KEY}",
-            "Content-Type": "application/json"
-        }
-        
-        prompt = f"""Bạn là chuyên gia bảo mật email chuyên phát hiện CEO fraud (Business Email Compromise - BEC) trong bối cảnh doanh nghiệp Việt Nam.
-
-NHIỆM VỤ: Phân tích email và xác định xem có phải là CEO fraud - một hình thức lừa đảo mà kẻ tấn công giả mạo CEO/Giám đốc để yêu cầu nhân viên chuyển tiền.
-
-CÁCH PHÂN TÍCH:
-1. Phân tích ngữ cảnh và ý định thực sự của email
-2. Tìm các dấu hiệu hành vi đáng ngờ (không phải từ khóa cụ thể)
-3. Xem xét mối quan hệ giữa các yếu tố: ngữ điệu, yêu cầu, bối cảnh
-4. Phân tích tính hợp lý của yêu cầu trong bối cảnh doanh nghiệp
-
-VÍ DỤ PHÁT HIỆN CEO FRAUD:
-- Email yêu cầu chuyển tiền với lý do khẩn cấp nhưng không giải thích rõ
-- Yêu cầu giữ bí mật hoặc không liên lạc qua kênh khác
-- Yêu cầu chuyển tiền đến tài khoản lạ, không phải tài khoản công ty
-- Ngữ điệu gấp gáp, ép buộc, không phù hợp với phong cách giao tiếp thông thường
-- Yêu cầu bất thường so với quy trình công ty
-
-EMAIL CẦN PHÂN TÍCH:
-{text[:3000]}
-
-Trả lời CHỈ bằng JSON:
-{{
-    "detected": true/false,
-    "confidence": 0-100,
-    "reason": "Giải thích chi tiết tại sao phát hiện hoặc không phát hiện CEO fraud",
-    "indicators": ["dấu hiệu hành vi 1", "dấu hiệu hành vi 2"],
-    "analysis": "Phân tích ngữ cảnh và ý định của email"
-}}"""
-        
-        payload = {
-            "model": "llama-3.1-8b-instant",
-            "messages": [
-                {"role": "system", "content": "You are a cybersecurity expert specializing in CEO fraud detection for Vietnamese businesses. Analyze emails based on behavioral patterns and context, not just keywords."},
-                {"role": "user", "content": prompt}
-            ],
-            "temperature": 0.2,
-            "response_format": {"type": "json_object"}
-        }
-        
-        response = requests.post(api_url, headers=headers, json=payload, timeout=30)
-        
-        if response.status_code == 200:
-            result = response.json()
-            content = result.get('choices', [{}])[0].get('message', {}).get('content', '')
-            
-            import json
-            try:
-                parsed = json.loads(content)
-                return {
-                    "detected": parsed.get('detected', False),
-                    "confidence": parsed.get('confidence', 0),
-                    "method": "groq_api",
-                    "reason": parsed.get('reason', '')
-                }
-            except:
-                pass
-        
-        return None
-        
-    except Exception as e:
-        logger.error(f"Groq API error: {str(e)}")
-        return None
-
-
-def analyze_with_huggingface_chat(text):
-    """
-    Analyze text using Hugging Face Chat API (Free)
-    """
-    try:
-        # Use Hugging Face Inference API with a chat model
-        api_url = "https://api-inference.huggingface.co/models/microsoft/DialoGPT-large"
-        
-        headers = {
-            "Authorization": f"Bearer {HUGGINGFACE_API_KEY}",
-            "Content-Type": "application/json"
-        }
-        
-        prompt = f"""Analyze this email for CEO fraud (lừa đảo chuyển tiền) in Vietnamese context: {text[:1000]}
-
-Is this CEO fraud? Answer with JSON: {{"detected": true/false, "confidence": 0-100}}"""
-        
-        payload = {"inputs": prompt}
-        
-        response = requests.post(api_url, headers=headers, json=payload, timeout=30)
-        
-        if response.status_code == 200:
-            result = response.json()
-            # Parse response (format depends on model)
-            # For now, use pattern-based as fallback
-            return None
-        
-        return None
-        
-    except Exception as e:
-        logger.error(f"HuggingFace Chat API error: {str(e)}")
-        return None
-
-
-def analyze_with_patterns(text):
-    """
-    Fallback pattern-based detection
-    (Used when chatbot API is unavailable)
-    """
-    text_lower = text.lower()
+        except Exception as e:
+            logger.error(f"Error analyzing URL {url}: {str(e)}")
+            return {
+                "url": url,
+                "malicious": 0,
+                "suspicious": 0,
+                "harmless": 0,
+                "is_malicious": False,
+                "error": str(e)
+            }
     
-    urgency_keywords = ['gấp', 'urgent', 'khẩn cấp', 'ngay lập tức', 'cấp bách']
-    money_keywords = ['chuyển tiền', 'transfer money', 'triệu', 'tỷ', '100tr', '500tr', 'stk', 'số tài khoản']
-    account_keywords = ['stk', 'số tài khoản', 'tài khoản', 'account', '012345', 'bank', 'tech']
-    suspicious_patterns = ['đừng gọi', 'đang họp', 'không gọi', 'tech em', 'tech anh']
+    # Use ThreadPoolExecutor for parallel processing
+    # Max workers = number of API keys (2) to avoid rate limits
+    max_workers = min(len(vt_key_manager.keys), len(urls), 2)
     
-    has_urgency = any(kw in text_lower for kw in urgency_keywords)
-    has_money = any(kw in text_lower for kw in money_keywords)
-    has_account = any(kw in text_lower for kw in account_keywords)
-    has_suspicious = any(kw in text_lower for kw in suspicious_patterns)
+    logger.info(f"Analyzing {len(urls)} URLs in parallel using {max_workers} API keys...")
     
-    # CEO fraud if: (urgency + money) OR (money + account) OR (urgency + account + suspicious)
-    detected = (has_urgency and has_money) or (has_money and has_account) or (has_urgency and has_account and has_suspicious)
-    
-    # Calculate confidence
-    confidence = 0
-    if has_urgency: confidence += 30
-    if has_money: confidence += 40
-    if has_account: confidence += 20
-    if has_suspicious: confidence += 10
-    confidence = min(confidence, 100)
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        # Submit all URLs for analysis
+        future_to_url = {executor.submit(analyze_single_url, url): url for url in urls}
+        
+        # Collect results as they complete
+        for future in as_completed(future_to_url):
+            result = future.result()
+            url_results.append(result)
+            if result.get('is_malicious'):
+                total_malicious += result.get('malicious', 0)
     
     return {
-        "detected": detected,
-        "confidence": confidence,
-        "method": "pattern_based",
-        "indicators": {
-            "has_urgency": has_urgency,
-            "has_money": has_money,
-            "has_account": has_account,
-            "has_suspicious": has_suspicious
-        }
+        "is_malicious": total_malicious > 0,
+        "total_malicious": total_malicious,
+        "total_urls": len(urls),
+        "url_results": url_results
     }
 
 
-def extract_urls(subject, body, html):
-    """Extract URLs from email (Check Mail.json regex)"""
-    text = f"{subject} {body} {html}"
-    url_pattern = r'(https?://[^\s<>"\'\)\]]+)'
-    urls = re.findall(url_pattern, text, re.IGNORECASE)
-    return list(set(urls))
+# Import CEO Fraud Detector
+from ceo_fraud_detector import detect_ceo_fraud_with_chatbot as detect_ceo_fraud_detector
+
+def detect_ceo_fraud_with_chatbot(subject, body, html):
+    """Wrapper to pass API keys and session to CEO fraud detector"""
+    return detect_ceo_fraud_detector(
+        subject, body, html,
+        GEMINI_API_KEY, GROQ_API_KEY, HUGGINGFACE_API_KEY,
+        http_session
+    )
 
 
-def submit_url_to_virustotal(url):
-    """Submit URL to VirusTotal"""
-    headers = {"x-apikey": VIRUSTOTAL_API_KEY}
+def submit_url_to_virustotal(url: str, api_key: Optional[str] = None) -> Optional[Dict[str, Any]]:
+    """Submit URL to VirusTotal with connection pooling and dual API key support"""
+    if not api_key:
+        api_key = vt_key_manager.get_next_key()
+    
+    if not api_key:
+        logger.error("No VirusTotal API key available")
+        return None
+    
+    headers = {"x-apikey": api_key}
     data = {"url": url}
     
     try:
-        response = requests.post(
+        response = http_session.post(
             f"{VIRUSTOTAL_BASE_URL}/urls",
             headers=headers,
             data=data,
-            timeout=30
+            timeout=VIRUSTOTAL_TIMEOUT
         )
         
         if response.status_code == 200:
             return response.json().get('data', {})
+        elif response.status_code == 429:
+            logger.warning(f"VirusTotal rate limit exceeded for key, trying next key...")
+            vt_key_manager.mark_rate_limited(api_key)
+            # Try with next key
+            next_key = vt_key_manager.get_next_key()
+            if next_key and next_key != api_key:
+                logger.info("Retrying with next API key...")
+                return submit_url_to_virustotal(url, next_key)
+            time.sleep(2)
+            return None
         else:
-            logger.error(f"VirusTotal submit error: {response.status_code} - {response.text}")
+            logger.error(f"VirusTotal submit error: {response.status_code} - {response.text[:200]}")
             return None
             
+    except requests.exceptions.Timeout:
+        logger.error("VirusTotal request timeout")
+        return None
     except Exception as e:
         logger.error(f"Error submitting URL to VirusTotal: {str(e)}")
         return None
 
 
-def get_virustotal_url_results(scan_id):
-    """Get URL scan results (Check Mail.json logic)"""
-    headers = {"x-apikey": VIRUSTOTAL_API_KEY}
+def get_virustotal_url_results(scan_id: str, api_key: Optional[str] = None) -> Dict[str, int]:
+    """Get URL scan results with connection pooling and dual API key support"""
+    if not api_key:
+        api_key = vt_key_manager.get_next_key()
+    
+    if not api_key:
+        logger.error("No VirusTotal API key available")
+        return {"malicious": 0, "suspicious": 0, "harmless": 0}
+    
+    headers = {"x-apikey": api_key}
     
     try:
-        response = requests.get(
+        response = http_session.get(
             f"{VIRUSTOTAL_BASE_URL}/analyses/{scan_id}",
             headers=headers,
-            timeout=30
+            timeout=VIRUSTOTAL_TIMEOUT
         )
         
         if response.status_code == 200:
@@ -907,24 +1124,43 @@ def get_virustotal_url_results(scan_id):
                 "suspicious": data.get('suspicious', 0),
                 "harmless": data.get('harmless', 0)
             }
+        elif response.status_code == 429:
+            logger.warning(f"VirusTotal rate limit exceeded for key, trying next key...")
+            vt_key_manager.mark_rate_limited(api_key)
+            # Try with next key
+            next_key = vt_key_manager.get_next_key()
+            if next_key and next_key != api_key:
+                logger.info("Retrying with next API key...")
+                return get_virustotal_url_results(scan_id, next_key)
+            return {"malicious": 0, "suspicious": 0, "harmless": 0}
         else:
             logger.error(f"VirusTotal get results error: {response.status_code}")
             return {"malicious": 0, "suspicious": 0, "harmless": 0}
             
+    except requests.exceptions.Timeout:
+        logger.error("VirusTotal request timeout")
+        return {"malicious": 0, "suspicious": 0, "harmless": 0}
     except Exception as e:
         logger.error(f"Error getting VirusTotal results: {str(e)}")
         return {"malicious": 0, "suspicious": 0, "harmless": 0}
 
 
-def check_virustotal_file(file_hash):
-    """Check file hash in VirusTotal"""
-    headers = {"x-apikey": VIRUSTOTAL_API_KEY}
+def check_virustotal_file(file_hash: str, api_key: Optional[str] = None) -> Dict[str, int]:
+    """Check file hash in VirusTotal with connection pooling and dual API key support"""
+    if not api_key:
+        api_key = vt_key_manager.get_next_key()
+    
+    if not api_key:
+        logger.error("No VirusTotal API key available")
+        return {"malicious": 0, "suspicious": 0, "harmless": 0}
+    
+    headers = {"x-apikey": api_key}
     
     try:
-        response = requests.get(
+        response = http_session.get(
             f"{VIRUSTOTAL_BASE_URL}/files/{file_hash}",
             headers=headers,
-            timeout=30
+            timeout=VIRUSTOTAL_TIMEOUT
         )
         
         if response.status_code == 200:
@@ -934,21 +1170,31 @@ def check_virustotal_file(file_hash):
                 "suspicious": stats.get('suspicious', 0),
                 "harmless": stats.get('harmless', 0)
             }
+        elif response.status_code == 429:
+            logger.warning(f"VirusTotal rate limit exceeded for key, trying next key...")
+            vt_key_manager.mark_rate_limited(api_key)
+            # Try with next key
+            next_key = vt_key_manager.get_next_key()
+            if next_key and next_key != api_key:
+                logger.info("Retrying with next API key...")
+                return check_virustotal_file(file_hash, next_key)
+            return {"malicious": 0, "suspicious": 0, "harmless": 0}
         else:
             logger.warning(f"File not found in VirusTotal: {response.status_code}")
             return {"malicious": 0, "suspicious": 0, "harmless": 0}
             
+    except requests.exceptions.Timeout:
+        logger.error("VirusTotal request timeout")
+        return {"malicious": 0, "suspicious": 0, "harmless": 0}
     except Exception as e:
         logger.error(f"Error checking file in VirusTotal: {str(e)}")
         return {"malicious": 0, "suspicious": 0, "harmless": 0}
 
 
 if __name__ == '__main__':
-    port = int(os.getenv('PORT', 5000))
-    debug = os.getenv('FLASK_DEBUG', 'True').lower() == 'true'
+    logger.info(f"Starting Email Security Analyzer API on port {Config.PORT}")
+    logger.info(f"Debug mode: {Config.FLASK_DEBUG}")
+    logger.info(f"Environment: {Config.FLASK_ENV}")
     
-    logger.info(f"Starting Email Security Analyzer API on port {port}")
-    logger.info(f"Debug mode: {debug}")
-    
-    app.run(host='0.0.0.0', port=port, debug=debug)
+    app.run(host='0.0.0.0', port=Config.PORT, debug=Config.FLASK_DEBUG)
 

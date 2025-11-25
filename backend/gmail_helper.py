@@ -17,12 +17,18 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-# Gmail API scopes
-SCOPES = ['https://www.googleapis.com/auth/gmail.readonly']
+# Gmail API scopes - Need modify scope to label emails and mark as read
+SCOPES = [
+    'https://www.googleapis.com/auth/gmail.readonly',
+    'https://www.googleapis.com/auth/gmail.modify'
+]
 
-# Labels
-PHISHING_LABEL = "Label_8387377442759074354"
-SAFE_LABEL = "Label_291990169998442549"
+# Import constants
+from constants import (
+    PHISHING_LABEL, SAFE_LABEL, CACHE_TIMEOUT,
+    EMAIL_CACHE_TIMEOUT, CACHE_MAX_SIZE,
+    MAX_EMAILS_DASHBOARD, MAX_EMAILS_DISPLAY, MAX_EMAILS_REPORTS
+)
 
 
 class GmailHelper:
@@ -30,7 +36,9 @@ class GmailHelper:
         self.service = None
         self.credentials = None
         self._cache = {}  # Simple cache for email data
-        self._cache_timeout = 60  # Cache timeout in seconds
+        self._cache_timeout = CACHE_TIMEOUT
+        self._email_details_cache = {}  # Cache for individual email details
+        self._email_cache_timeout = EMAIL_CACHE_TIMEOUT
     
     def authenticate(self):
         """Authenticate with Gmail API"""
@@ -60,6 +68,31 @@ class GmailHelper:
         self.credentials = creds
         self.service = build('gmail', 'v1', credentials=creds)
         return True
+
+    def get_thread_safe_service(self):
+        """
+        Create a fresh Gmail service instance for thread-safe operations.
+        Gmail's default HTTP client (httplib2) is not thread-safe, so we build
+        a new service per worker.
+        """
+        if not self.credentials or (self.credentials and not self.credentials.valid):
+            if not self.authenticate():
+                return None
+        else:
+            # Refresh credentials if expired
+            if self.credentials.expired and self.credentials.refresh_token:
+                try:
+                    self.credentials.refresh(Request())
+                except Exception as exc:
+                    logger.error(f"Failed to refresh Gmail credentials: {exc}")
+                    if not self.authenticate():
+                        return None
+
+        try:
+            return build('gmail', 'v1', credentials=self.credentials)
+        except Exception as exc:
+            logger.error(f"Failed to build Gmail service for thread: {exc}")
+            return None
     
     def get_emails_by_label(self, label_id, max_results=500):
         """Lấy emails theo label"""
@@ -81,9 +114,61 @@ class GmailHelper:
             logger.error(f"Error getting emails by label {label_id}: {error}")
             return []
     
-    def get_email_details(self, message_id):
-        """Lấy chi tiết email"""
+    def get_unread_emails(self, max_results=50, exclude_labels=None):
+        """Lấy emails chưa đọc (unprocessed)"""
         try:
+            if not self.service:
+                if not self.authenticate():
+                    return []
+            
+            # Query for unread emails in inbox
+            query = 'is:unread in:inbox -category:social -category:promotions'
+            results = self.service.users().messages().list(
+                userId='me',
+                q=query,
+                maxResults=max_results
+            ).execute()
+            
+            messages = results.get('messages', [])
+            
+            # Filter out emails that have our labels if exclude_labels is provided
+            if exclude_labels:
+                filtered_messages = []
+                for msg in messages:
+                    # Get message to check labels
+                    try:
+                        message = self.service.users().messages().get(
+                            userId='me',
+                            id=msg['id'],
+                            format='metadata',
+                            metadataHeaders=['Labels']
+                        ).execute()
+                        
+                        label_ids = message.get('labelIds', [])
+                        # Only include if doesn't have exclude labels
+                        if not any(label_id in label_ids for label_id in exclude_labels):
+                            filtered_messages.append(msg)
+                    except:
+                        # If can't get message, include it
+                        filtered_messages.append(msg)
+                
+                return filtered_messages
+            
+            return messages
+            
+        except HttpError as error:
+            logger.error(f"Error getting unread emails: {error}")
+            return []
+    
+    def get_email_details(self, message_id):
+        """Lấy chi tiết email với caching"""
+        try:
+            # Check cache first
+            if message_id in self._email_details_cache:
+                cached_data, cached_time = self._email_details_cache[message_id]
+                if time.time() - cached_time < self._email_cache_timeout:
+                    return cached_data
+            
             if not self.service:
                 if not self.authenticate():
                     return None
@@ -133,7 +218,7 @@ class GmailHelper:
             found_urls = re.findall(url_pattern, full_text)
             urls = list(set(found_urls))  # Remove duplicates
             
-            return {
+            result = {
                 'id': message_id,
                 'subject': subject,
                 'sender': sender,
@@ -144,8 +229,132 @@ class GmailHelper:
                 'url_count': len(urls)
             }
             
+            # Cache result
+            self._email_details_cache[message_id] = (result, time.time())
+            
+            # Limit cache size to prevent memory issues
+            if len(self._email_details_cache) > CACHE_MAX_SIZE:
+                # Remove oldest entries (20% of cache)
+                sorted_cache = sorted(self._email_details_cache.items(), key=lambda x: x[1][1])
+                remove_count = CACHE_MAX_SIZE // 5
+                for key, _ in sorted_cache[:remove_count]:
+                    del self._email_details_cache[key]
+            
+            return result
+            
         except HttpError as error:
             logger.error(f"Error getting email details: {error}")
+            return None
+    
+    def get_email_details_with_attachments(self, message_id, service=None):
+        """Lấy chi tiết email bao gồm cả attachments (for urgent scanning)"""
+        try:
+            svc = service
+            if not svc:
+                if not self.service:
+                    if not self.authenticate():
+                        return None
+                svc = self.service
+            
+            message = svc.users().messages().get(
+                userId='me',
+                id=message_id,
+                format='full'
+            ).execute()
+            
+            # Extract headers
+            headers = message['payload'].get('headers', [])
+            subject = next((h['value'] for h in headers if h['name'] == 'Subject'), 'No Subject')
+            sender = next((h['value'] for h in headers if h['name'] == 'From'), 'Unknown')
+            date = next((h['value'] for h in headers if h['name'] == 'Date'), '')
+            
+            # Extract body
+            body_text = ''
+            body_html = ''
+            attachments = []
+            
+            payload = message['payload']
+            
+            if 'parts' in payload:
+                for part in payload['parts']:
+                    mime_type = part.get('mimeType', '')
+                    body = part.get('body', {})
+                    data = body.get('data', '')
+                    
+                    if mime_type == 'text/plain' and data:
+                        body_text = base64.urlsafe_b64decode(data).decode('utf-8', errors='ignore')
+                    elif mime_type == 'text/html' and data:
+                        body_html = base64.urlsafe_b64decode(data).decode('utf-8', errors='ignore')
+                    elif 'attachmentId' in body:
+                        # Get attachment info
+                        attachments.append({
+                            'filename': part.get('filename', 'unknown'),
+                            'mimeType': mime_type,
+                            'attachmentId': body['attachmentId'],
+                            'size': body.get('size', 0)
+                        })
+            else:
+                # Single part message
+                body = payload.get('body', {})
+                data = body.get('data', '')
+                if data:
+                    if payload.get('mimeType') == 'text/html':
+                        body_html = base64.urlsafe_b64decode(data).decode('utf-8', errors='ignore')
+                    else:
+                        body_text = base64.urlsafe_b64decode(data).decode('utf-8', errors='ignore')
+            
+            # Download attachments if needed (for urgent scan, we'll get attachment data)
+            attachment_data = []
+            for att in attachments:
+                try:
+                    att_data = svc.users().messages().attachments().get(
+                        userId='me',
+                        messageId=message_id,
+                        id=att['attachmentId']
+                    ).execute()
+                    
+                    # Decode attachment
+                    file_data = base64.urlsafe_b64decode(att_data['data'])
+                    file_base64 = base64.b64encode(file_data).decode('utf-8')
+                    
+                    attachment_data.append({
+                        'filename': att['filename'],
+                        'data': file_base64,
+                        'mimeType': att['mimeType']
+                    })
+                except Exception as e:
+                    logger.warning(f"Could not download attachment {att['filename']}: {e}")
+                    # Still include attachment info even if can't download
+                    attachment_data.append({
+                        'filename': att['filename'],
+                        'data': None,  # Will skip file analysis if no data
+                        'mimeType': att['mimeType']
+                    })
+            
+            # Extract URLs from body
+            import re
+            urls = []
+            full_text = body_text + ' ' + body_html
+            url_pattern = r'https?://[^\s<>"{}|\\^`\[\]]+'
+            found_urls = re.findall(url_pattern, full_text)
+            urls = list(set(found_urls))  # Remove duplicates
+            
+            result = {
+                'id': message_id,
+                'subject': subject,
+                'sender': sender,
+                'date': date,
+                'body': body_text,
+                'html': body_html,
+                'urls': urls,
+                'url_count': len(urls),
+                'attachments': attachment_data
+            }
+            
+            return result
+            
+        except HttpError as error:
+            logger.error(f"Error getting email details with attachments: {error}")
             return None
     
     def get_dashboard_data(self, max_emails=100, use_cache=True):
@@ -174,11 +383,11 @@ class GmailHelper:
             total_scanned = phishing_count + safe_count
             phishing_rate = f"{(phishing_count / total_scanned * 100):.2f}%" if total_scanned > 0 else "0%"
             
-            # Format emails for dashboard (limit to 50 for performance)
+            # Format emails for dashboard (limit for performance)
             formatted_emails = []
             
             # Format phishing emails
-            for msg in phishing_messages[:50]:
+            for msg in phishing_messages[:MAX_EMAILS_DISPLAY]:
                 email_details = self.get_email_details(msg['id'])
                 if email_details:
                     formatted_emails.append({
@@ -194,7 +403,7 @@ class GmailHelper:
                     })
             
             # Format safe emails
-            for msg in safe_messages[:50]:
+            for msg in safe_messages[:MAX_EMAILS_DISPLAY]:
                 email_details = self.get_email_details(msg['id'])
                 if email_details:
                     formatted_emails.append({
@@ -252,8 +461,8 @@ class GmailHelper:
                     return self._get_reports_error_response()
             
             # Get all emails (phishing + safe)
-            phishing_messages = self.get_emails_by_label(PHISHING_LABEL, max_results=500)
-            safe_messages = self.get_emails_by_label(SAFE_LABEL, max_results=500)
+            phishing_messages = self.get_emails_by_label(PHISHING_LABEL, max_results=MAX_EMAILS_REPORTS)
+            safe_messages = self.get_emails_by_label(SAFE_LABEL, max_results=MAX_EMAILS_REPORTS)
             
             # Get email details for analysis
             all_emails = []

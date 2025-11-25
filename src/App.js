@@ -1,25 +1,17 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import Sidebar from './components/Sidebar';
 import DashboardLayout from './components/DashboardLayout';
-import Widget from './components/Widget';
-import OverviewWidgets from './components/OverviewWidgets';
 import OverviewTab from './components/OverviewTab';
+import OverviewWidgets from './components/OverviewWidgets';
 import ScannerTab from './components/ScannerTab';
 import MFATab from './components/MFATab';
 import EmailProtectionTab from './components/EmailProtectionTab';
 import PolicyManagementTab from './components/PolicyManagementTab';
 import ReportsTab from './components/ReportsTab';
 import SettingsTab from './components/SettingsTab';
-import StatCard from './components/StatCard';
-
-// Backend API Configuration
-const BACKEND_CONFIG = {
-  baseUrl: process.env.REACT_APP_API_BASE_URL || 'http://localhost:5000',
-  endpoints: {
-    dashboardData: '/dashboard-data', // Unified API - trả về cả stats và emails
-    scanUrl: '/scan-url'
-  }
-};
+import TasksTab from './components/TasksTab';
+import { apiCall, apiCallWithRetry } from './config/api';
+import { REFRESH_INTERVALS, WORKFLOW_STATUS } from './constants';
 
 
 function App() {
@@ -29,12 +21,12 @@ function App() {
   const [scanResult, setScanResult] = useState(null);
   const [emailFilter, setEmailFilter] = useState('all');
   
-  // Real data from n8n
+  // Real data from backend
   const [realStats, setRealStats] = useState({
     total_emails_scanned: 0,
     phishing_detected: 0,
     safe_emails: 0,
-    workflow_status: 'loading', // 'loading' | 'active' | 'error'
+    workflow_status: WORKFLOW_STATUS.LOADING,
     last_updated: null,
     phishing_rate: '0%'
   });
@@ -44,59 +36,46 @@ function App() {
 
   // Unified function to fetch both statistics and emails in one call
   const fetchDashboardData = useCallback(async () => {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s timeout
-    
     try {
       setLoadingStats(true);
       setLoadingEmails(true);
       
-      const response = await fetch(`${BACKEND_CONFIG.baseUrl}${BACKEND_CONFIG.endpoints.dashboardData}`, {
-        signal: controller.signal
-      });
+      const result = await apiCallWithRetry('/dashboard-data', {
+        method: 'GET'
+      }, 2); // Retry 2 times
       
-      clearTimeout(timeoutId);
-      
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-      }
-      
-      const contentType = response.headers.get('content-type');
-      if (!contentType?.includes('application/json')) {
-        throw new Error('Invalid response type');
-      }
-      
-      const data = await response.json();
-      
-      // Extract statistics and emails from unified response
-      if (data.statistics) {
-        setRealStats({
-          total_emails_scanned: data.statistics.total_emails_scanned ?? 0,
-          phishing_detected: data.statistics.phishing_detected ?? 0,
-          safe_emails: data.statistics.safe_emails ?? 0,
-          workflow_status: data.statistics.workflow_status || 'active',
-          last_updated: data.statistics.last_updated || new Date().toISOString(),
-          phishing_rate: data.statistics.phishing_rate || '0%'
-        });
-      }
-      
-      if (data.emails?.emails && Array.isArray(data.emails.emails)) {
-        setRealEmails(data.emails.emails);
-      } else if (Array.isArray(data.emails)) {
-        setRealEmails(data.emails);
-      } else {
-        setRealEmails([]);
+      if (result.success && result.data) {
+        const data = result.data;
+        
+        // Extract statistics and emails from unified response
+        if (data.statistics) {
+          setRealStats({
+            total_emails_scanned: data.statistics.total_emails_scanned ?? 0,
+            phishing_detected: data.statistics.phishing_detected ?? 0,
+            safe_emails: data.statistics.safe_emails ?? 0,
+            workflow_status: data.statistics.workflow_status || 'active',
+            last_updated: data.statistics.last_updated || new Date().toISOString(),
+            phishing_rate: data.statistics.phishing_rate || '0%'
+          });
+        }
+        
+        if (data.emails?.emails && Array.isArray(data.emails.emails)) {
+          setRealEmails(data.emails.emails);
+        } else if (Array.isArray(data.emails)) {
+          setRealEmails(data.emails);
+        } else {
+          setRealEmails([]);
+        }
       }
       
     } catch (error) {
-      if (error.name !== 'AbortError') {
-        setRealStats(prev => ({
-          ...prev,
-          workflow_status: 'error'
-        }));
-      }
+      console.error('Error fetching dashboard data:', error);
+      setRealStats(prev => ({
+        ...prev,
+        workflow_status: WORKFLOW_STATUS.ERROR
+      }));
+      setRealEmails([]);
     } finally {
-      clearTimeout(timeoutId);
       setLoadingStats(false);
       setLoadingEmails(false);
     }
@@ -105,7 +84,7 @@ function App() {
   // Fetch unified dashboard data on component mount and set up auto-refresh
   useEffect(() => {
     fetchDashboardData();
-    const interval = setInterval(fetchDashboardData, 30000);
+    const interval = setInterval(fetchDashboardData, REFRESH_INTERVALS.DASHBOARD);
     return () => clearInterval(interval);
   }, [fetchDashboardData]);
 
@@ -116,36 +95,36 @@ function App() {
     setScanning(true);
     setScanResult(null);
     
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 60000); // 60s timeout
-    
     try {
-      const response = await fetch(`${BACKEND_CONFIG.baseUrl}${BACKEND_CONFIG.endpoints.scanUrl}`, {
+      const result = await apiCallWithRetry('/scan-url', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ url }),
-        signal: controller.signal
-      });
+        body: JSON.stringify({ url })
+      }, 2);
       
-      clearTimeout(timeoutId);
-      
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
+      if (result.success && result.data) {
+        const data = result.data;
+        setScanResult({
+          url: data.url || url,
+          riskLevel: data.risk_level || (data.is_malicious ? 'HIGH' : 'LOW'),
+          threatType: data.threat_type || (data.is_malicious ? 'Phishing' : 'Safe'),
+          confidence: data.confidence || (data.is_malicious ? 85 : 5),
+          vendors: data.vendors || '0/90',
+          categories: data.categories || (data.is_malicious ? ['phishing'] : ['safe']),
+          timestamp: data.timestamp || new Date().toISOString(),
+          // VirusTotal specific fields
+          malicious: data.malicious || 0,
+          suspicious: data.suspicious || 0,
+          harmless: data.harmless || 0,
+          total_engines: data.total_engines || 0,
+          source: data.source || 'VirusTotal',
+          scan_id: data.scan_id,
+          error: data.error
+        });
+      } else {
+        throw new Error('Invalid response from server');
       }
-      
-      const data = await response.json();
-      setScanResult({
-        url: data.url || url,
-        riskLevel: data.risk_level || (data.is_malicious ? 'HIGH' : 'LOW'),
-        threatType: data.threat_type || (data.is_malicious ? 'Phishing' : 'Safe'),
-        confidence: data.confidence || (data.is_malicious ? 85 : 5),
-        vendors: data.vendors || '0/90',
-        categories: data.categories || (data.is_malicious ? ['phishing'] : ['safe']),
-        timestamp: data.timestamp || new Date().toLocaleString()
-      });
     } catch (error) {
+      console.error('Error scanning URL:', error);
       setScanResult({
         url,
         riskLevel: 'UNKNOWN',
@@ -154,16 +133,15 @@ function App() {
         vendors: '0/90',
         categories: ['error'],
         timestamp: new Date().toLocaleString(),
-        error: error.message
+        error: error.message || 'Failed to scan URL'
       });
     } finally {
-      clearTimeout(timeoutId);
       setScanning(false);
     }
   }, [scanUrl]);
 
   const displayStats = useMemo(() => {
-    const useRealData = realStats.workflow_status === 'active';
+    const useRealData = realStats.workflow_status === WORKFLOW_STATUS.ACTIVE;
     
     // Always use real data if available, even if workflow_status is not 'active'
     const totalFromStats = realStats.total_emails_scanned ?? 0;
@@ -246,18 +224,15 @@ function App() {
       <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} />
       
       {activeTab === 'overview' ? (
-        <DashboardLayout 
-          activeTab={activeTab}
-          onAddWidget={handleAddWidget}
-          onRestoreLayout={handleRestoreLayout}
-        >
-          <OverviewWidgets 
+        <div className="flex-1 ml-64 bg-gray-50 min-h-screen p-6">
+          <OverviewTab
             realStats={realStats}
+            loadingStats={loadingStats}
             displayStats={displayStats}
-            onCloseWidget={handleCloseWidget}
-            closedWidgets={closedWidgets}
+            onRefresh={fetchDashboardData}
+            filteredEmails={filteredEmails}
           />
-        </DashboardLayout>
+        </div>
       ) : (
         <div className="flex-1 ml-64 bg-gray-50 min-h-screen p-6">
         {activeTab === 'scanner' && (
@@ -299,10 +274,7 @@ function App() {
           )}
 
           {activeTab === 'tasks' && (
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-              <h2 className="text-2xl font-bold text-gray-900 mb-4">Tác Vụ</h2>
-              <p className="text-gray-600">Quản lý các tác vụ bảo mật email</p>
-            </div>
+            <TasksTab />
           )}
         </div>
       )}

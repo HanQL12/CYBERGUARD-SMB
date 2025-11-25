@@ -29,6 +29,7 @@ yarn-error.log*
 /backend/__pycache__/
 /backend/*.pyc
 /backend/.env
+/backend/.env.local
 /backend/token.json
 /backend/credentials.json
 /backend/*.log
