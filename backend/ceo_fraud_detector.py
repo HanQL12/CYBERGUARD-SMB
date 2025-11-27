@@ -10,16 +10,50 @@ from constants import CEO_FRAUD_CONFIDENCE_THRESHOLD
 
 logger = logging.getLogger(__name__)
 
+SAFE_DOMAIN_ALLOWLIST = {
+    'google.com', 'www.google.com',
+    'microsoft.com', 'www.microsoft.com', 'office.com', 'outlook.com',
+    'apple.com', 'facebook.com', 'youtube.com', 'amazon.com',
+    'zalo.me', 'vietcombank.com.vn', 'vietinbank.vn'
+}
 
-def detect_ceo_fraud_with_chatbot(subject, body, html, gemini_key, groq_key, huggingface_key, http_session):
+
+def detect_ceo_fraud_with_chatbot(
+    subject,
+    body,
+    html,
+    gemini_key,
+    groq_key,
+    huggingface_key,
+    http_session,
+    url_analysis=None,
+    file_analysis=None
+):
     """
-    Detect CEO fraud using Chatbot API (Free)
-    Currently only uses Google Gemini responses
+    Detect CEO fraud using Chatbot API (currently Gemini only).
+    Takes into account URL/file analysis to reduce false positives.
     """
+    url_analysis = url_analysis or {}
+    file_analysis = file_analysis or {}
+    
+    # Determine if URLs/files were flagged safe
+    urls_safe = True
+    safe_domains = set()
+    
+    for entry in url_analysis.get('url_results', []):
+        url_value = entry.get('url')
+        if not url_value:
+            continue
+        domain = url_value.replace('https://', '').replace('http://', '').split('/')[0]
+        domain = domain.lower()
+        safe_domains.add(domain)
+        if entry.get('is_malicious'):
+            urls_safe = False
+    
+    files_safe = not file_analysis.get('is_malicious', False)
+    
     # Combine all text
     full_text = f"{subject} {body} {html}"
-    
-    # Clean HTML tags
     text = re.sub(r'<[^>]+>', '', full_text)
     text = text.strip()
     
@@ -32,37 +66,31 @@ def detect_ceo_fraud_with_chatbot(subject, body, html, gemini_key, groq_key, hug
     
     if not gemini_key:
         logger.warning("Gemini API key is missing. Skipping CEO fraud detection.")
-        return {
-            "detected": False,
-            "confidence": 0,
-            "reason": "Gemini API key is missing",
-            "indicators": [],
-            "method": "gemini_api"
-        }
+        return analyze_with_patterns(text, url_analysis, file_analysis)
     
     try:
         logger.info("Using Google Gemini API for CEO fraud detection")
         result = analyze_with_gemini(text, gemini_key, http_session)
-        if result and result.get('method') == 'gemini_api':
+        
+        if result and result.get('method') == "gemini_api":
+            if result.get('detected') and urls_safe and files_safe:
+                allowlist_hit = any(
+                    any(domain.endswith(allowed) for allowed in SAFE_DOMAIN_ALLOWLIST)
+                    for domain in safe_domains
+                )
+                if allowlist_hit:
+                    logger.info("CEO fraud detection downgraded due to allowlisted safe domains.")
+                    result['detected'] = False
+                    result['reason'] = "Chỉ cảnh báo: ngôn từ đáng ngờ nhưng URL/file an toàn"
+                else:
+                    result.setdefault('warnings', []).append("Ngôn từ nghi ngờ nhưng URL/file an toàn")
             return result
         
         logger.warning("Gemini API did not return a valid result.")
-        return {
-            "detected": False,
-            "confidence": 0,
-            "reason": "Gemini API did not return a valid result",
-            "indicators": [],
-            "method": "gemini_api"
-        }
+        return analyze_with_patterns(text, url_analysis, file_analysis)
     except Exception as e:
         logger.error(f"Error in CEO fraud detection: {str(e)}")
-        return {
-            "detected": False,
-            "confidence": 0,
-            "reason": "Gemini API error",
-            "indicators": [],
-            "method": "gemini_api"
-        }
+        return analyze_with_patterns(text, url_analysis, file_analysis)
 
 
 def analyze_with_gemini(text, api_key, http_session):
@@ -335,5 +363,39 @@ def analyze_gemini_response_semantically(content):
             "indicators": [],
             "analysis": ""
         }
+
+
+def analyze_with_patterns(text, url_analysis=None, file_analysis=None):
+    """Lightweight fallback analysis using heuristics"""
+    url_analysis = url_analysis or {}
+    file_analysis = file_analysis or {}
+    
+    text_lower = text.lower()
+    
+    financial_keywords = [
+        "chuyển tiền", "thanh toán", "payment", "bank", "stk", "account",
+        "gấp", "urgent", "khẩn cấp", "giữ bí mật", "confidential",
+        "không gọi", "không liên lạc", "wire", "invoice", "transfer"
+    ]
+    matches = sum(1 for kw in financial_keywords if kw in text_lower)
+    
+    files_safe = not file_analysis.get('is_malicious', False)
+    urls_safe = all(not item.get('is_malicious', False) for item in url_analysis.get('url_results', []))
+    
+    detected = matches >= 3 and not (urls_safe and files_safe)
+    confidence = min(70, 40 + matches * 5) if detected else max(5, matches * 5)
+    
+    reason = "Nhiều dấu hiệu yêu cầu tài chính đáng ngờ"
+    if urls_safe and files_safe:
+        reason = "Ngôn từ đáng ngờ nhưng URL/file đều an toàn – chỉ cảnh báo"
+    
+    return {
+        "detected": detected,
+        "confidence": confidence,
+        "method": "pattern_fallback",
+        "reason": reason,
+        "indicators": [kw for kw in financial_keywords if kw in text_lower][:5],
+        "warnings": ["Cảnh báo ngôn từ nghi ngờ"] if urls_safe and files_safe else []
+    }
 
 

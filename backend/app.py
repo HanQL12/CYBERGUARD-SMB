@@ -697,7 +697,16 @@ def _perform_email_analysis(
     
     # STEP 3: CEO Fraud Detection (Priority 3)
     logger.info("Analyzing CEO fraud...")
-    ceo_result = detect_ceo_fraud_with_chatbot(subject, body, html) or {}
+    url_analysis = details.get('url_analysis', {})
+    file_analysis = details.get('file_analysis', {})
+    
+    ceo_result = detect_ceo_fraud_with_chatbot(
+        subject,
+        body,
+        html,
+        url_analysis,
+        file_analysis
+    ) or {}
     
     ceo_confidence = ceo_result.get('confidence', 0) or 0
     ceo_detected = ceo_result.get('detected', False)
@@ -1046,12 +1055,18 @@ def analyze_urls_parallel(urls: list) -> Dict[str, Any]:
 # Import CEO Fraud Detector
 from ceo_fraud_detector import detect_ceo_fraud_with_chatbot as detect_ceo_fraud_detector
 
-def detect_ceo_fraud_with_chatbot(subject, body, html):
-    """Wrapper to pass API keys and session to CEO fraud detector"""
+def detect_ceo_fraud_with_chatbot(subject, body, html, url_analysis=None, file_analysis=None):
+    """Wrapper to pass API keys, session, and context to CEO fraud detector"""
     return detect_ceo_fraud_detector(
-        subject, body, html,
-        GEMINI_API_KEY, GROQ_API_KEY, HUGGINGFACE_API_KEY,
-        http_session
+        subject,
+        body,
+        html,
+        GEMINI_API_KEY,
+        GROQ_API_KEY,
+        HUGGINGFACE_API_KEY,
+        http_session,
+        url_analysis=url_analysis,
+        file_analysis=file_analysis
     )
 
 
